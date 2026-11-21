@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import { Field, Select, Textarea } from '@/components/ui';
+import { Field, Input, Select, Textarea } from '@/components/ui';
 import { LOCALES } from '@/config/app';
-import type { BrandProfileData } from '../profile';
+import { MAX_EMOJIS_LIMIT, normalizeHashtags, type BrandProfileData } from '../profile';
 import { RowListInput, StringListInput } from './inputs';
 
 export interface SectionProps {
@@ -150,6 +150,102 @@ export function VoiceSection({ value, onChange, disabled }: SectionProps) {
   );
 }
 
+/**
+ * Reglas de publicación que comprueba el verificador de marca: hashtags
+ * obligatorios y recomendados, llamadas a la acción y política de emojis.
+ * Va en la pestaña «Voz» del perfil, aparte de `VoiceSection` para no alargar el asistente de alta.
+ */
+export function PublishingRulesSection({ value, onChange, disabled }: SectionProps) {
+  const set = (patch: Partial<BrandProfileData['voice']>) =>
+    onChange({ ...value, voice: { ...value.voice, ...patch } });
+  const { hashtags, emojis } = value.voice;
+  const policy = emojis.allowed === null ? 'undefined' : emojis.allowed ? 'yes' : 'no';
+  return (
+    <Stack>
+      <StringListInput
+        label="Hashtags obligatorios"
+        hint="Tienen que aparecer en cada publicación; si falta alguno, la pieza no es apta. Sin la almohadilla."
+        values={hashtags.required}
+        onChange={(required) => set({ hashtags: { ...hashtags, required: normalizeHashtags(required) } })}
+        placeholder="P. ej. MiMarca"
+        disabled={disabled}
+        maxLength={100}
+        testId="profile-hashtags-required"
+      />
+      <StringListInput
+        label="Hashtags recomendados"
+        hint="Conviene usarlos; si faltan, solo se avisa."
+        values={hashtags.recommended}
+        onChange={(recommended) => set({ hashtags: { ...hashtags, recommended: normalizeHashtags(recommended) } })}
+        placeholder="P. ej. CocinaDeMercado"
+        disabled={disabled}
+        maxLength={100}
+        testId="profile-hashtags-recommended"
+      />
+      <StringListInput
+        label="Llamadas a la acción"
+        hint="Frases con las que invitáis a actuar. Basta con que el texto lleve una."
+        values={value.voice.callsToAction}
+        onChange={(callsToAction) => set({ callsToAction })}
+        placeholder="P. ej. Reserva tu mesa"
+        disabled={disabled}
+        maxLength={200}
+        testId="profile-ctas"
+      />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Emojis" hint="Si no lo indicáis, el verificador no comprueba los emojis.">
+          {(p) => (
+            <Select
+              {...p}
+              disabled={disabled}
+              value={policy}
+              onChange={(e) =>
+                set({
+                  emojis: {
+                    ...emojis,
+                    allowed: e.target.value === 'undefined' ? null : e.target.value === 'yes',
+                  },
+                })
+              }
+              data-testid="profile-emoji-policy"
+            >
+              <option value="undefined">Sin definir</option>
+              <option value="yes">Se pueden usar</option>
+              <option value="no">No se usan</option>
+            </Select>
+          )}
+        </Field>
+        {emojis.allowed !== false && (
+          <Field label="Máximo de emojis por publicación" hint="Déjalo vacío si no hay máximo." optional>
+            {(p) => (
+              <Input
+                {...p}
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={MAX_EMOJIS_LIMIT}
+                step={1}
+                disabled={disabled}
+                value={emojis.max ?? ''}
+                onChange={(e) => {
+                  const n = e.target.value === '' ? null : Math.round(Number(e.target.value));
+                  set({
+                    emojis: {
+                      ...emojis,
+                      max: n === null || !Number.isFinite(n) ? null : Math.min(MAX_EMOJIS_LIMIT, Math.max(0, n)),
+                    },
+                  });
+                }}
+                data-testid="profile-emoji-max"
+              />
+            )}
+          </Field>
+        )}
+      </div>
+    </Stack>
+  );
+}
+
 /** Colores, tipografías y notas de estilo. Los logotipos los gestiona cada pantalla (necesitan subir archivos). */
 export function VisualSection({ value, onChange, disabled }: SectionProps) {
   const set = (patch: Partial<BrandProfileData['visual']>) =>
@@ -237,7 +333,7 @@ export function ChannelsSection({ value, onChange, disabled }: SectionProps) {
       </Field>
       <StringListInput
         label="Otros idiomas"
-        hint="Códigos de idioma: en, fr, ca…"
+        hint="Escribe el código de cada idioma: en (inglés), fr (francés), ca (catalán)…"
         values={value.languages.others}
         onChange={(others) => onChange({ ...value, languages: { ...value.languages, others } })}
         maxLength={10}

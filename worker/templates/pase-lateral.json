@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "pase-lateral",
+  "name": "Pase lateral",
+  "description": "Las piezas entran deslizándose desde un lado y las fotos se recorren en horizontal. Texto arriba, con contorno fino.",
+  "canvas": { "width": 1080, "height": 1920, "fps": 30 },
+  "timing": { "photoSeconds": 3, "maxClipSeconds": 5, "maxTotalSeconds": 45 },
+  "transition": { "type": "slideleft", "seconds": 0.4 },
+  "photoMotion": { "type": "pan-right", "amount": 0.1 },
+  "text": {
+    "font": "default",
+    "sizeRatio": 0.055,
+    "color": "#FFFFFF",
+    "position": "top",
+    "marginRatio": 0.14,
+    "maxWidthRatio": 0.8,
+    "lineHeight": 1.3,
+    "box": null,
+    "outline": { "color": "#000000", "widthRatio": 0.05 },
+    "fadeSeconds": 0.2
+  },
+  "audio": { "musicVolume": 0.3, "clipVolume": 0, "fadeInSeconds": 0.8, "fadeOutSeconds": 1.2 },
+  "export": { "crf": 21, "preset": "veryfast", "audioBitrateKbps": 128 }
+}

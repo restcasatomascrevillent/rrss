@@ -28,6 +28,8 @@ export function MenuItem({
   children: ReactNode;
   onSelect?: () => void;
   destructive?: boolean;
+  disabled?: boolean;
+  title?: string;
   'data-testid'?: string;
 }) {
   return (
@@ -35,7 +37,7 @@ export function MenuItem({
       onSelect={onSelect}
       className={cn(
         'flex min-h-[2.5rem] cursor-pointer select-none items-center gap-2 rounded-lg px-2.5 text-sm outline-none',
-        'data-[highlighted]:bg-subtle',
+        'data-[highlighted]:bg-subtle data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50',
         destructive ? 'text-danger' : 'text-fg',
       )}
       {...props}

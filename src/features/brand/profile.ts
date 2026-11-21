@@ -14,6 +14,29 @@ const list = (maxItems = 50, maxLength = 300) =>
 
 export const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
+/**
+ * Lista de hashtags: sin almohadilla ni espacios, solo letras, números y guion
+ * bajo, sin repetidos (sin distinguir mayúsculas). Lo que no encaja se descarta
+ * en lugar de rechazar el perfil entero.
+ */
+export function normalizeHashtags(items: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of items) {
+    const tag = item.replace(/\s+/g, '').replace(/^[#＃]+/, '');
+    const key = tag.toLocaleLowerCase('es');
+    if (!tag || tag.length > 100 || !/^[\p{L}\p{N}_]+$/u.test(tag) || seen.has(key)) continue;
+    seen.add(key);
+    result.push(tag);
+  }
+  return result;
+}
+
+const hashtagList = (maxItems = 50) => z.array(z.string()).max(maxItems).default([]).transform(normalizeHashtags);
+
+/** Máximo de emojis que se puede fijar en el perfil. */
+export const MAX_EMOJIS_LIMIT = 100;
+
 export const brandProfileSchema = z.object({
   business: z
     .object({
@@ -43,6 +66,22 @@ export const brandProfileSchema = z.object({
       keyMessages: list(50, 500),
       allowedPhrases: list(100),
       forbiddenPhrases: list(100),
+      /**
+       * Reglas de publicación que lee el verificador de marca (src/features/brandcheck).
+       * Perfiles guardados antes de existir estos campos se leen con los valores por
+       * defecto: listas vacías y política de emojis sin definir (`null`), de modo que
+       * el verificador omite esas comprobaciones en vez de inventarse una regla.
+       */
+      hashtags: z.object({ required: hashtagList(), recommended: hashtagList() }).default({}),
+      callsToAction: list(30, 200),
+      emojis: z
+        .object({
+          /** `null` = el perfil no lo define. */
+          allowed: z.boolean().nullable().default(null),
+          /** `null` = sin máximo definido. */
+          max: z.number().int().min(0).max(MAX_EMOJIS_LIMIT).nullable().default(null),
+        })
+        .default({}),
     })
     .default({}),
   visual: z

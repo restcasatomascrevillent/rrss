@@ -6,7 +6,10 @@ decisiones en `docs/`; el punto en que está el trabajo, en `docs/ESTADO.md`
 
 - **Otros repositorios y cuentas.** No se toca `admin-casatomas` ni
   `web-casatomas` (ni siquiera para «arreglar algo de paso») ni ningún proyecto
-  de Supabase o Vercel de Casa Tomás. Este producto usa cuentas propias.
+  de Supabase de Casa Tomás. Supabase usa una cuenta propia (Oficiosos). En
+  Vercel, por decisión del dueño (18/11/2026), el proyecto `rrss` vive en el
+  equipo `casa-tomas` junto a los del restaurante: tócalo solo a él, nunca
+  `web-casatomas`, `admin-casatomas` ni `touza-casatomas`.
 - **Sin código por cliente.** Nada de nombres, colores, textos o condiciones de
   un cliente concreto en el código. Lo que distingue a un cliente es configuración.
 - **Aislamiento.** Tabla nueva = RLS + políticas + privilegios explícitos +

@@ -1,21 +1,9 @@
 import { forwardRef, type ButtonHTMLAttributes } from 'react';
 import { Loader2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { buttonClasses, type ButtonSize, type ButtonVariant } from './buttonStyles';
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
-type Size = 'sm' | 'md' | 'icon';
-
-const VARIANTS: Record<Variant, string> = {
-  primary: 'bg-primary text-primary-fg hover:bg-primary/90 shadow-card',
-  secondary: 'bg-surface text-fg border border-border hover:bg-subtle',
-  ghost: 'text-fg hover:bg-subtle',
-  danger: 'bg-danger text-surface hover:bg-danger/90',
-};
-const SIZES: Record<Size, string> = {
-  sm: 'h-9 px-3 text-sm',
-  md: 'h-11 px-4 text-sm',
-  icon: 'h-10 w-10',
-};
+type Variant = ButtonVariant;
+type Size = ButtonSize;
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
@@ -33,13 +21,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       type={type}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-      className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors',
-        'disabled:cursor-not-allowed disabled:opacity-55',
-        VARIANTS[variant],
-        SIZES[size],
-        className,
-      )}
+      className={buttonClasses(variant, size, className)}
       {...props}
     >
       {loading && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}

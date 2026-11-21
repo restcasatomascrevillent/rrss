@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { profileCompleteness } from './completeness';
+import { hasPublishingRules, profileCompleteness } from './completeness';
 import {
   brandProfileSchema,
   emptyProfile,
   nextProvenance,
+  normalizeHashtags,
   normalizeProfile,
   parseProfile,
   parseProvenance,
@@ -100,6 +101,41 @@ describe('procedencia', () => {
   });
 });
 
+describe('reglas de publicación del perfil', () => {
+  it('un perfil guardado antes de existir estos campos se lee con valores por defecto', () => {
+    const old = parseProfile({ voice: { tone: ['cercano'], forbiddenPhrases: ['gratis'] }, goals: ['A'] });
+    expect(old.voice.hashtags).toEqual({ required: [], recommended: [] });
+    expect(old.voice.callsToAction).toEqual([]);
+    expect(old.voice.emojis).toEqual({ allowed: null, max: null });
+    expect(old.voice.forbiddenPhrases).toEqual(['gratis']);
+  });
+  it('limpia los hashtags: sin almohadilla ni espacios, sin repetidos ni símbolos', () => {
+    const p = brandProfileSchema.parse({
+      voice: { hashtags: { required: ['#Mi Marca', 'mimarca', '##Tapas', 'no-vale', '', 'Ñandú_1'] } },
+    });
+    expect(p.voice.hashtags.required).toEqual(['MiMarca', 'Tapas', 'Ñandú_1']);
+    expect(normalizeHashtags(['#a', 'A', 'b'])).toEqual(['a', 'b']);
+  });
+  it('rechaza un máximo de emojis fuera de rango; la recuperación conserva el resto', () => {
+    expect(brandProfileSchema.safeParse({ voice: { emojis: { max: -1 } } }).success).toBe(false);
+    expect(brandProfileSchema.safeParse({ voice: { emojis: { max: 1.5 } } }).success).toBe(false);
+    const recovered = parseProfile({ goals: ['A'], voice: { emojis: { max: 9999 } } });
+    expect(recovered.goals).toEqual(['A']);
+    expect(recovered.voice.emojis).toEqual({ allowed: null, max: null });
+  });
+  it('un perfil sin reglas no las tiene y la política de emojis vacía no cuenta como contenido', () => {
+    expect(hasPublishingRules(emptyProfile())).toBe(false);
+    expect(Object.keys(nextProvenance({}, null, emptyProfile(), 'user'))).toEqual(['languages']);
+  });
+  it('cuentan para la completitud cuando se define alguna', () => {
+    const keys = (p: object) => profileCompleteness(brandProfileSchema.parse(p)).missing.map((m) => m.key);
+    expect(keys({})).toContain('publishingRules');
+    expect(keys({ voice: { emojis: { allowed: false } } })).not.toContain('publishingRules');
+    expect(keys({ voice: { hashtags: { recommended: ['x'] } } })).not.toContain('publishingRules');
+    expect(keys({ voice: { callsToAction: ['Reserva'] } })).not.toContain('publishingRules');
+  });
+});
+
 describe('completitud', () => {
   it('un perfil vacío está al 0 % y lista todo lo que falta', () => {
     const result = profileCompleteness(emptyProfile());
@@ -117,7 +153,7 @@ describe('completitud', () => {
       business: { description: 'Una descripción suficientemente larga.', products: [{ name: 'P' }], valueProps: ['V'] },
       audience: { segments: [{ name: 'Familias' }] },
       goals: ['A'],
-      voice: { tone: ['cercano'], keyMessages: ['M'] },
+      voice: { tone: ['cercano'], keyMessages: ['M'], callsToAction: ['Reserva'] },
       visual: {
         colors: [{ hex: '#112233' }],
         fonts: [{ family: 'Inter' }],

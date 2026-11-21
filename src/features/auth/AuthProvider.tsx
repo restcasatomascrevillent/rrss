@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { Spinner } from '@/components/ui';
+import { ShellSkeleton } from '@/layout/Skeletons';
 import { supabase } from '@/lib/supabase';
 
 interface AuthValue {
@@ -57,7 +58,8 @@ export function useUser(): User {
 export function RequireAuth() {
   const { user, loading } = useAuth();
   const location = useLocation();
-  if (loading) return <Spinner className="min-h-dvh" />;
+  // Mientras se lee la sesión se pinta ya el armazón con siluetas.
+  if (loading) return <ShellSkeleton />;
   if (!user) return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
   return <Outlet />;
 }

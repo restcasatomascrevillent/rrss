@@ -1,11 +1,16 @@
 import {
+  BarChart3,
+  CalendarDays,
   Building2,
+  ClipboardList,
+  FileText,
   Check,
   ChevronsUpDown,
   Home,
   Images,
   LayoutGrid,
   LogOut,
+  Megaphone,
   Monitor,
   Moon,
   Palette,
@@ -13,6 +18,7 @@ import {
   Settings,
   ShieldCheck,
   Sun,
+  UserRound,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -21,21 +27,20 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from '@/components/ui';
 import { APP_NAME } from '@/config/app';
+import { campaignsAvailable } from '@/features/campaigns/labels';
 import { useUser } from '@/features/auth/AuthProvider';
+import { LegalFooter } from '@/features/legal/LegalFooter';
 import { useIsPlatformAdmin, type MyOrganization } from '@/features/orgs/api';
 import { ORG_ROLE_LABEL } from '@/features/permissions/roles';
+import { useUnreadRequestNotifications } from '@/features/requests/notifications';
 import type { BrandRow } from '@/lib/database.types';
 import { translateError } from '@/lib/errors';
 import { supabase } from '@/lib/supabase';
 import { cn, initials } from '@/lib/utils';
+import { MobileNav } from './MobileNav';
+import { NavBadge, type NavItem } from './nav';
 import { useTheme, type ThemeChoice } from './theme';
-
-interface NavItem {
-  to: string;
-  label: string;
-  icon: LucideIcon;
-  end?: boolean;
-}
+import { useFeature } from '@/features/platform/integrations/useFeature';
 
 interface AppShellProps {
   orgs: MyOrganization[];
@@ -45,13 +50,22 @@ interface AppShellProps {
   children: ReactNode;
 }
 
-function navItems(org: MyOrganization, brand: BrandRow | null): NavItem[] {
+function navItems(org: MyOrganization, brand: BrandRow | null, unreadRequests = 0, aiText = false): NavItem[] {
   const base = `/o/${org.id}`;
   const settings: NavItem = { to: `${base}/ajustes`, label: 'Configuración', icon: Settings };
   if (!brand) return [{ to: base, label: 'Marcas', icon: LayoutGrid, end: true }, settings];
   const b = `${base}/m/${brand.id}`;
   return [
     { to: `${b}/inicio`, label: 'Inicio', icon: Home },
+    { to: `${b}/contenidos`, label: 'Contenidos', icon: FileText },
+    // Encargos: solo con la marca en modo agencia (quien los atiende es la agencia).
+    ...(brand.ai_mode === 'agency'
+      ? [{ to: `${b}/encargos`, label: 'Encargos', icon: ClipboardList, badge: unreadRequests }]
+      : []),
+    { to: `${b}/calendario`, label: 'Calendario', icon: CalendarDays },
+    // Campañas: con IA de texto conectada o con la marca en modo agencia (docs/03, área «Campañas»).
+    ...(campaignsAvailable(brand, aiText) ? [{ to: `${b}/campanas`, label: 'Campañas', icon: Megaphone }] : []),
+    { to: `${b}/analitica`, label: 'Analítica', icon: BarChart3 },
     { to: `${b}/biblioteca`, label: 'Biblioteca', icon: Images },
     { to: `${b}/marca`, label: 'Marca', icon: Palette },
     { to: `${b}/equipo`, label: 'Equipo', icon: Users },
@@ -190,6 +204,10 @@ export function UserMenu({ compact = false }: { compact?: boolean }) {
           </MenuItem>
         ))}
         <MenuSeparator />
+        <MenuItem onSelect={() => navigate('/cuenta')} data-testid="nav-account">
+          <UserRound className="h-4 w-4" aria-hidden />
+          Mi cuenta y privacidad
+        </MenuItem>
         {isPlatformAdmin && (
           <MenuItem onSelect={() => navigate('/plataforma')} data-testid="nav-platform">
             <ShieldCheck className="h-4 w-4" aria-hidden />
@@ -206,7 +224,9 @@ export function UserMenu({ compact = false }: { compact?: boolean }) {
 }
 
 export function AppShell({ orgs, org, brands, brand, children }: AppShellProps) {
-  const items = navItems(org, brand);
+  const unread = useUnreadRequestNotifications(brand?.id, brand?.ai_mode === 'agency');
+  const aiText = useFeature('aiText');
+  const items = navItems(org, brand, unread.data?.length ?? 0, aiText);
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[17rem_minmax(0,1fr)]">
       <a
@@ -229,7 +249,7 @@ export function AppShell({ orgs, org, brands, brand, children }: AppShellProps) 
           <BrandSwitcher org={org} brands={brands} brand={brand} />
         </div>
         <nav aria-label="Principal" className="flex-1 space-y-1 overflow-y-auto">
-          {items.map(({ to, label, icon: Icon, end }) => (
+          {items.map(({ to, label, icon: Icon, end, badge }) => (
             <NavLink
               key={to}
               to={to}
@@ -237,13 +257,19 @@ export function AppShell({ orgs, org, brands, brand, children }: AppShellProps) 
               data-testid={`nav-${label.toLowerCase()}`}
               className={({ isActive }) =>
                 cn(
-                  'flex min-h-[2.75rem] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors',
-                  isActive ? 'bg-primary-soft text-primary' : 'text-muted hover:bg-subtle hover:text-fg',
+                  'relative flex min-h-[2.75rem] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors',
+                  // La sección activa la decide solo la ruta (aria-current lo pone NavLink):
+                  // fondo, color y una raya a la izquierda, para no confundirla con el
+                  // fondo de «pasar por encima» de la entrada que se acaba de pulsar.
+                  isActive
+                    ? 'bg-primary-soft font-semibold text-primary before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-full before:bg-primary'
+                    : 'text-muted hover:bg-subtle hover:text-fg',
                 )
               }
             >
               <Icon className="h-4 w-4" aria-hidden />
               {label}
+              <NavBadge count={badge} />
             </NavLink>
           ))}
         </nav>
@@ -264,30 +290,11 @@ export function AppShell({ orgs, org, brands, brand, children }: AppShellProps) 
 
         <main id="contenido" className="mx-auto w-full max-w-6xl px-4 pb-28 pt-6 sm:px-6 lg:px-10 lg:pb-12 lg:pt-10">
           {children}
+          <LegalFooter className="mt-12" />
         </main>
 
-        {/* Móvil y tablet: navegación inferior */}
-        <nav
-          aria-label="Principal"
-          className="fixed inset-x-0 bottom-0 z-30 flex border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
-        >
-          {items.map(({ to, label, icon: Icon, end }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              className={({ isActive }) =>
-                cn(
-                  'flex min-h-[3.5rem] min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 text-[0.6875rem] font-medium',
-                  isActive ? 'text-primary' : 'text-muted',
-                )
-              }
-            >
-              <Icon className="h-5 w-5" aria-hidden />
-              <span className="max-w-full truncate">{label}</span>
-            </NavLink>
-          ))}
-        </nav>
+        {/* Móvil y tablet: 4 secciones fijas y «Más» con el resto */}
+        <MobileNav items={items} brandName={brand?.name} />
       </div>
     </div>
   );

@@ -64,7 +64,7 @@ export function parseBrandConfig(text: string): ImportResult {
   try {
     raw = JSON.parse(text);
   } catch {
-    return { ok: false, errors: ['El archivo no es un JSON válido.'] };
+    return { ok: false, errors: ['El archivo no es una configuración válida.'] };
   }
   const parsed = brandConfigSchema.safeParse(raw);
   if (parsed.success) {

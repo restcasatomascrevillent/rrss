@@ -1,0 +1,63 @@
+{
+  "format": "rrss.agency-delivery",
+  "version": 1,
+  "title": "Menú de otoño · post",
+  "copy": {
+    "caption": "Llega el otoño y con él nuestro guiso de la casa. Ven a probarlo esta semana.",
+    "hashtags": ["otoño", "cocinadetemporada"],
+    "mentions": [],
+    "altText": "Cazuela de guiso humeante sobre una mesa de madera.",
+    "callToAction": { "label": "Reserva tu mesa", "url": "https://ejemplo.test/reservas" }
+  },
+  "variants": [
+    {
+      "caption": "Cuchara, pan y un guiso que huele a otoño. ¿Te esperamos?",
+      "hashtags": ["otoño"]
+    }
+  ],
+  "document": {
+    "schemaVersion": 1,
+    "canvas": { "aspectRatio": "4:5", "width": 1080, "height": 1350, "backgroundColor": "#FFFFFF" },
+    "layers": [
+      {
+        "id": "foto",
+        "type": "image",
+        "name": "Foto del guiso",
+        "source": { "kind": "asset", "assetId": "00000000-0000-4000-8000-000000000001" },
+        "x": 0,
+        "y": 0,
+        "width": 1080,
+        "height": 1350,
+        "fit": "cover",
+        "anchor": { "x": "stretch", "y": "stretch" }
+      },
+      {
+        "id": "franja",
+        "type": "shape",
+        "shape": "rectangle",
+        "x": 0,
+        "y": 1050,
+        "width": 1080,
+        "height": 300,
+        "fill": "#1F2937",
+        "opacity": 0.85,
+        "anchor": { "x": "stretch", "y": "bottom" }
+      },
+      {
+        "id": "titular",
+        "type": "text",
+        "text": "Menú de otoño",
+        "fontFamily": "Inter",
+        "fontSize": 96,
+        "fontWeight": 700,
+        "color": "#FFFFFF",
+        "align": "center",
+        "x": 60,
+        "y": 1120,
+        "width": 960,
+        "height": 160,
+        "anchor": { "x": "center", "y": "bottom" }
+      }
+    ]
+  }
+}

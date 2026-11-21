@@ -3,6 +3,8 @@ import { useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button, Card, CardBody, Field, Input } from '@/components/ui';
 import { APP_NAME } from '@/config/app';
+import { LegalFooter } from '@/features/legal/LegalFooter';
+import { LEGAL_VERSIONS, legalPath } from '@/features/legal/legal';
 import { translateError } from '@/lib/errors';
 import { supabase } from '@/lib/supabase';
 import { redirectTarget, useAuth } from './AuthProvider';
@@ -32,6 +34,7 @@ function AuthLayout({
           <CardBody>{children}</CardBody>
         </Card>
         {footer && <p className="mt-5 text-center text-sm text-muted">{footer}</p>}
+        <LegalFooter className="mt-8" />
       </div>
     </main>
   );
@@ -136,6 +139,8 @@ export function RegisterPage() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  // Consentimiento: casilla sin marcar; sin ella no se crea la cuenta.
+  const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [pendingConfirmation, setPendingConfirmation] = useState(false);
@@ -149,7 +154,15 @@ export function RegisterPage() {
     const { data, error: authError } = await supabase.auth.signUp({
       email: email.trim(),
       password,
-      options: { data: { full_name: fullName.trim() }, emailRedirectTo: window.location.origin },
+      options: {
+        // Las versiones aceptadas viajan en los metadatos del alta; la base de
+        // datos las apunta con la hora del servidor (legal_acceptances).
+        data: {
+          full_name: fullName.trim(),
+          legal: { terms_version: LEGAL_VERSIONS.terms, privacy_version: LEGAL_VERSIONS.privacy },
+        },
+        emailRedirectTo: window.location.origin,
+      },
     });
     setLoading(false);
     if (authError) return setError(translateError(authError));
@@ -228,12 +241,32 @@ export function RegisterPage() {
             />
           )}
         </Field>
+        <label className="flex items-start gap-2.5 text-sm" data-testid="register-legal">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 shrink-0"
+            checked={accepted}
+            onChange={(e) => setAccepted(e.target.checked)}
+            data-testid="register-accept"
+          />
+          <span>
+            He leído y acepto las{' '}
+            <Link to={legalPath('terms')} target="_blank" className={linkClass}>
+              condiciones de uso
+            </Link>{' '}
+            y la{' '}
+            <Link to={legalPath('privacy')} target="_blank" className={linkClass}>
+              política de privacidad
+            </Link>
+            .
+          </span>
+        </label>
         <FormError message={error} />
         <Button
           type="submit"
           className="w-full"
           loading={loading}
-          disabled={!fullName.trim() || !email || password.length < 8}
+          disabled={!fullName.trim() || !email || password.length < 8 || !accepted}
           data-testid="register-submit"
         >
           Crear cuenta

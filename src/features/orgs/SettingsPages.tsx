@@ -26,6 +26,7 @@ import { ActivityList } from '@/features/audit/ActivityList';
 import { useUser } from '@/features/auth/AuthProvider';
 import { InviteDialog } from '@/features/invitations/InviteDialog';
 import { assignableOrgRoles, BRAND_ROLE_LABEL, canRemoveMember, ORG_ROLE_LABEL } from '@/features/permissions/roles';
+import { useFeature } from '@/features/platform/integrations/useFeature';
 import type { OrgKind, OrgRole } from '@/lib/database.types';
 import { translateError } from '@/lib/errors';
 import { cn, formatDate } from '@/lib/utils';
@@ -44,10 +45,17 @@ import { useOrg } from './context';
 export function SettingsLayout() {
   const { org, isAdmin } = useOrg();
   const base = `/o/${org.id}/ajustes`;
+  const drive = useFeature('drive');
   const tabs = [
     { to: `${base}/general`, label: 'General' },
     { to: `${base}/equipo`, label: 'Equipo' },
     ...(isAdmin ? [{ to: `${base}/actividad`, label: 'Actividad' }] : []),
+    ...(isAdmin ? [{ to: `${base}/ia`, label: 'Consumo de IA' }] : []),
+    ...(isAdmin ? [{ to: `${base}/plan`, label: 'Plan' }] : []),
+    // Biblioteca con Google Drive: solo si el entorno la tiene y está configurada.
+    ...(drive ? [{ to: `${base}/drive`, label: 'Google Drive' }] : []),
+    // RGPD: exportar y borrar la organización, solo propietarios.
+    ...(org.role === 'owner' ? [{ to: `${base}/datos`, label: 'Datos' }] : []),
   ];
   return (
     <>
@@ -212,17 +220,19 @@ export function TeamSettingsPage() {
 
   function confirmRemove() {
     if (!removing) return;
-    remove.mutate(removing.user_id, {
-      onSuccess: () => {
+    // Con la promesa y no con los avisos de `mutate`: al salir uno mismo, la organización desaparece de la
+    // lista y esta pantalla se desmonta antes de que la mutación termine; los avisos de `mutate` no se ejecutarían.
+    remove.mutateAsync(removing.user_id).then(
+      () => {
         setRemoving(null);
         if (removingSelf) navigate('/', { replace: true });
         else toast.success('Miembro quitado');
       },
-      onError: (e) => {
+      (e: unknown) => {
         setRemoving(null);
         toast.error(translateError(e));
       },
-    });
+    );
   }
 
   return (

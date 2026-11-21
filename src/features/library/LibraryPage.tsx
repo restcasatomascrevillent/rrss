@@ -1,18 +1,32 @@
-import { FileText, Film, Images, Music, Search, Upload } from 'lucide-react';
+import { Clapperboard, FileText, FilterX, Film, HardDrive, Images, Music, Search, Upload } from 'lucide-react';
 import { useDeferredValue, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Badge, Button, Card, EmptyState, ErrorState, Input, PageHeader, Select, Skeleton } from '@/components/ui';
+import { mediaWorkerEnabled } from '@/config/app';
+import { isDriveAsset, useDriveConnections } from '@/features/drive/api';
+import { DriveImportDialog } from '@/features/drive/DriveImportDialog';
 import { useBrand, useOrg } from '@/features/orgs/context';
+import { useFeature } from '@/features/platform/integrations/useFeature';
 import type { AssetKind, MediaAssetRow } from '@/lib/database.types';
 import { formatBytes } from '@/lib/utils';
-import { useAssetFacets, useAssets, useSignedUrls, type AssetFilters } from './api';
+import {
+  previewPath,
+  useAssetFacets,
+  useAssets,
+  useAssetsByIds,
+  useSignedUrls,
+  useStorageCleanup,
+  type AssetFilters,
+} from './api';
 import { AssetDialog } from './AssetDialog';
 import { ASSET_KIND_LABEL, ASSET_KINDS } from './labels';
+import { ThumbImage } from './ThumbImage';
 import { UploadPanel } from './UploadPanel';
 
 function Thumbnail({ asset, url }: { asset: MediaAssetRow; url: string | undefined }) {
   if (asset.mime_type.startsWith('image/')) {
     return url ? (
-      <img src={url} alt="" loading="lazy" className="h-full w-full object-cover" />
+      <ThumbImage url={url} />
     ) : (
       <Skeleton className="h-full w-full rounded-none" />
     );
@@ -29,13 +43,27 @@ export function LibraryPage() {
   const { org } = useOrg();
   const { brand, can } = useBrand();
   const canEdit = can('edit');
+  const navigate = useNavigate();
+  useStorageCleanup(brand.id, canEdit);
   const [uploading, setUploading] = useState(false);
+  // Google Drive: solo si el entorno lo tiene, el servidor está configurado y la
+  // organización tiene una conexión activa.
+  const driveConfigured = useFeature('drive');
+  const driveConnections = useDriveConnections(org.id, driveConfigured && canEdit);
+  const canUseDrive = driveConfigured && canEdit && (driveConnections.data ?? []).some((c) => c.status === 'active');
+  const [drivePicking, setDrivePicking] = useState(false);
   const [kind, setKind] = useState<AssetKind | ''>('');
   const [tag, setTag] = useState('');
   const [folder, setFolder] = useState('');
   const [search, setSearch] = useState('');
   const deferredSearch = useDeferredValue(search);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // `?recurso=<id>` abre ese recurso (lo usa «Abrir en la biblioteca» desde Reels).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [selectedId, setSelectedId] = useState<string | null>(() => searchParams.get('recurso'));
+  const closeSelected = () => {
+    setSelectedId(null);
+    if (searchParams.has('recurso')) setSearchParams({}, { replace: true });
+  };
 
   const filters: AssetFilters = useMemo(
     () => ({ kind, tag, folder, search: deferredSearch }),
@@ -44,12 +72,21 @@ export function LibraryPage() {
   const assets = useAssets(brand.id, filters);
   const facets = useAssetFacets(brand.id);
   const rows = useMemo(() => assets.data?.pages.flat() ?? [], [assets.data]);
+  // Un recurso que no está en la página cargada (p. ej. un recorte recién hecho) se lee aparte.
+  const inRows = rows.some((a) => a.id === selectedId);
+  const outside = useAssetsByIds(brand.id, selectedId && !assets.isPending && !inRows ? [selectedId] : []);
+  const selected = rows.find((a) => a.id === selectedId) ?? outside.data?.find((a) => a.id === selectedId) ?? null;
   const previewPaths = useMemo(
-    () => rows.filter((a) => a.mime_type.startsWith('image/') || a.id === selectedId).map((a) => a.storage_path),
-    [rows, selectedId],
+    () => [
+      ...rows.filter((a) => a.mime_type.startsWith('image/') || a.id === selectedId).map(previewPath),
+      ...(selected && !inRows ? [previewPath(selected)] : []),
+    ],
+    [rows, selectedId, selected, inRows],
   );
-  const urls = useSignedUrls(previewPaths);
-  const selected = rows.find((a) => a.id === selectedId) ?? null;
+  // Cuadrícula con miniaturas (las de Drive, la miniatura de Google); la ficha, con el archivo entero.
+  const urls = useSignedUrls(previewPaths, { variant: 'thumb' });
+  const selectedPaths = useMemo(() => (selected ? [selected.storage_path] : []), [selected]);
+  const selectedUrls = useSignedUrls(selectedPaths);
   const filtering = Boolean(kind || tag || folder || deferredSearch.trim());
 
   return (
@@ -69,6 +106,31 @@ export function LibraryPage() {
             </Button>
           )
         }
+        more={
+          canEdit
+            ? [
+                canUseDrive
+                  ? {
+                      id: 'drive',
+                      label: 'Traer de Google Drive',
+                      icon: HardDrive,
+                      onSelect: () => setDrivePicking(true),
+                      testId: 'library-drive',
+                    }
+                  : null,
+                mediaWorkerEnabled()
+                  ? {
+                      id: 'reels',
+                      label: 'Montar un reel',
+                      icon: Clapperboard,
+                      onSelect: () => navigate('reels'),
+                      testId: 'library-reels',
+                    }
+                  : null,
+              ]
+            : undefined
+        }
+        moreTestId="library-more"
       />
 
       {canEdit && uploading && (
@@ -157,13 +219,28 @@ export function LibraryPage() {
                   : 'Todavía no se ha subido ningún archivo.'
             }
             action={
-              !filtering &&
-              canEdit &&
-              !uploading && (
-                <Button onClick={() => setUploading(true)}>
-                  <Upload className="h-4 w-4" aria-hidden />
-                  Subir archivos
+              filtering ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setKind('');
+                    setTag('');
+                    setFolder('');
+                    setSearch('');
+                  }}
+                  data-testid="library-clear-filters"
+                >
+                  <FilterX className="h-4 w-4" aria-hidden />
+                  Quitar filtros
                 </Button>
+              ) : (
+                canEdit &&
+                !uploading && (
+                  <Button onClick={() => setUploading(true)} data-testid="library-empty-upload">
+                    <Upload className="h-4 w-4" aria-hidden />
+                    Subir archivos
+                  </Button>
+                )
               )
             }
           />
@@ -189,7 +266,13 @@ export function LibraryPage() {
                     <span className="block truncate text-sm font-medium">{asset.file_name}</span>
                     <span className="flex items-center justify-between gap-2 text-xs text-muted">
                       <span>{formatBytes(asset.bytes)}</span>
-                      {asset.kind !== 'image' && <Badge>{ASSET_KIND_LABEL[asset.kind]}</Badge>}
+                      {isDriveAsset(asset) ? (
+                        <span data-testid="library-asset-drive">
+                          <Badge>Drive</Badge>
+                        </span>
+                      ) : (
+                        asset.kind !== 'image' && <Badge>{ASSET_KIND_LABEL[asset.kind]}</Badge>
+                      )}
                     </span>
                   </span>
                 </button>
@@ -210,13 +293,16 @@ export function LibraryPage() {
         </>
       )}
 
+      {canUseDrive && <DriveImportDialog brandId={brand.id} open={drivePicking} onOpenChange={setDrivePicking} />}
+
       {selected && (
         <AssetDialog
           key={selected.id}
           asset={selected}
-          url={urls.data?.get(selected.storage_path)}
+          url={selectedUrls.data?.get(selected.storage_path) ?? urls.data?.get(selected.storage_path)}
           canEdit={canEdit}
-          onClose={() => setSelectedId(null)}
+          onClose={closeSelected}
+          onOpenAsset={setSelectedId}
         />
       )}
     </>

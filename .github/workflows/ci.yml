@@ -24,3 +24,141 @@ jobs:
       - run: npm test
       - run: npm run test:db
       - run: npm run build
+
+  # Trabajador de medios (worker/): paquete aparte, con FFmpeg de verdad.
+  trabajador:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+      - name: Instalar FFmpeg y una tipografía
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      # El contenedor que se desplegará: se construye y se monta dentro un reel
+      # de verdad, comprobado con ffprobe.
+      - name: Reel por plantilla dentro del contenedor
+        run: |
+          docker build --target test -t rrss-worker-test .
+          docker run --rm --name rrss-worker-test rrss-worker-test npm run test:reel
+
+  # Herramienta de la agencia (agency/): reutiliza src/ (esquema del documento,
+  # catálogo de redes y verificador de marca), así que instala también la raíz.
+  agencia:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            agency/package-lock.json
+      - run: npm ci
+      - run: npm ci
+        working-directory: agency
+      - run: npm run typecheck
+        working-directory: agency
+      - run: npm test
+        working-directory: agency
+
+  # Prueba de extremo a extremo (Playwright, 57 escenarios) contra el stack de
+  # Supabase LOCAL levantado dentro del propio trabajo (Docker de ubuntu-latest).
+  # Sin secretos: la URL y la clave anónima del stack local son públicas y las
+  # lee playwright.config.ts de `supabase status`; la función de IA corre con el
+  # proveedor simulado (supabase/functions/e2e.env).
+  #
+  # AVISO: `continue-on-error: true` a propósito. Hasta que se vea estable en
+  # GitHub (varias ejecuciones seguidas en verde) NO bloquea el PR: si falla, el
+  # trabajo sale en rojo y deja el informe como artefacto, pero la comprobación
+  # global del PR no se rompe. Cuando sea estable, quitar esa línea y añadir
+  # `e2e` a las comprobaciones obligatorias de la rama.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    continue-on-error: true
+    env:
+      # Trazas de Playwright solo de las pruebas que fallan (ver playwright.config.ts).
+      E2E_TRAZA: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # El trabajador ejecuta su TypeScript sin compilar: Node >= 22.18.
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            worker/package-lock.json
+            agency/package-lock.json
+      - uses: supabase/setup-cli@v1
+        with:
+          # Misma versión que se usa en local (docs/05-puesta-en-marcha.md).
+          version: 2.105.0
+      - name: Instalar FFmpeg y una tipografía
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
+      - run: npm ci
+      - run: npm ci
+        working-directory: worker
+      - run: npm ci
+        working-directory: agency
+      # El navegador se cachea por versión de Playwright. Con la caché acertada
+      # solo faltan las bibliotecas del sistema; si no, se baja todo.
+      - name: Versión de Playwright
+        id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - name: Instalar Chromium (con dependencias)
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - name: Instalar dependencias del sistema de Chromium
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+      # Las imágenes de Docker de Supabase (~2 GB) se bajan del registro en cada
+      # ejecución: guardarlas en caché tarda lo mismo que bajarlas y se come el
+      # límite de 10 GB de caché del repositorio. Se excluyen los servicios que la
+      # prueba no usa (Studio, Vector, imgproxy y analítica); la base de datos
+      # nace con las migraciones de supabase/migrations/ y la semilla.
+      - name: Arrancar Supabase local
+        run: supabase start -x studio,vector,imgproxy,analytics
+      - name: Estado del stack local
+        run: supabase status
+      - name: Prueba de extremo a extremo
+        run: npm run test:e2e
+      - name: Registros de los contenedores (si falla)
+        if: failure()
+        run: |
+          mkdir -p diagnostico
+          docker ps -a > diagnostico/contenedores.txt 2>&1 || true
+          for c in $(docker ps -a --format '{{.Names}}' | grep -E 'supabase_(auth|kong|edge_runtime|storage|db)_rrss-local'); do
+            docker logs --tail 300 "$c" > "diagnostico/$c.log" 2>&1 || true
+          done
+      - name: Subir informe, trazas y registros (si falla)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-informe
+          path: |
+            playwright-report/
+            test-results/
+            diagnostico/
+          retention-days: 14
+          if-no-files-found: ignore
+      - name: Parar Supabase local
+        if: always()
+        run: supabase stop --no-backup

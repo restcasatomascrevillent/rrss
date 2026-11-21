@@ -48,6 +48,12 @@ export function profileCompleteness(profile: BrandProfileData): Completeness {
       label: 'Escribe los mensajes clave',
       done: profile.voice.keyMessages.length > 0,
     },
+    {
+      key: 'publishingRules',
+      section: 'voice',
+      label: 'Fija hashtags, llamadas a la acción o política de emojis',
+      done: hasPublishingRules(profile),
+    },
     { key: 'colors', section: 'visual', label: 'Añade los colores de marca', done: profile.visual.colors.length > 0 },
     { key: 'fonts', section: 'visual', label: 'Añade las tipografías', done: profile.visual.fonts.length > 0 },
     { key: 'logo', section: 'visual', label: 'Sube el logotipo', done: profile.visual.logoAssetIds.length > 0 },
@@ -59,4 +65,16 @@ export function profileCompleteness(profile: BrandProfileData): Completeness {
     checks,
     missing: checks.filter((c) => !c.done),
   };
+}
+
+/** Alguna de las reglas de publicación que lee el verificador de marca está definida. */
+export function hasPublishingRules(profile: BrandProfileData): boolean {
+  const { hashtags, callsToAction, emojis } = profile.voice;
+  return (
+    hashtags.required.length > 0 ||
+    hashtags.recommended.length > 0 ||
+    callsToAction.length > 0 ||
+    emojis.allowed !== null ||
+    emojis.max !== null
+  );
 }

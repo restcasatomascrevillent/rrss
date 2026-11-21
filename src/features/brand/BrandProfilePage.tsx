@@ -1,5 +1,6 @@
 import { Archive, ArchiveRestore, Download, History } from 'lucide-react';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
@@ -17,12 +18,15 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui';
+import { assetKeys, deleteAssets } from '@/features/library/api';
 import { useBrand, useOrg } from '@/features/orgs/context';
 import type { BrandProfileRow } from '@/lib/database.types';
 import { translateError } from '@/lib/errors';
 import { downloadText } from '@/lib/utils';
 import { useActiveProfile, useSaveProfile, useUpdateBrand } from './api';
 import { BasicsFields } from './BasicsFields';
+import { AiModeCard } from '@/features/requests/AiModeCard';
+import { ConnectedAccountsCard } from '@/features/social/ConnectedAccountsCard';
 import { profileCompleteness } from './completeness';
 import { brandBasicsSchema, configFileName, exportBrandConfig, type BrandBasics } from './config';
 import {
@@ -30,12 +34,14 @@ import {
   BusinessSection,
   ChannelsSection,
   ContextSection,
+  PublishingRulesSection,
   VisualSection,
   VoiceSection,
   type SectionProps,
 } from './editor/sections';
 import { HistoryDialog } from './HistoryDialog';
 import { LogoManager } from './LogoManager';
+import { logosToDiscard, settleSaved } from './logos';
 import {
   emptyProfile,
   nextProvenance,
@@ -44,8 +50,12 @@ import {
   parseProvenance,
   type BrandProfileData,
   type ProfileSectionKey,
+  type ProvenanceSource,
 } from './profile';
+import { ProfileProposalFromSources } from './ProfileProposalFromSources';
+import { BrandFontsCard } from './BrandFontsCard';
 import { SourcesCard } from './SourcesCard';
+import { useFeature } from '@/features/platform/integrations/useFeature';
 
 const TABS = [
   { value: 'negocio', label: 'Negocio' },
@@ -141,6 +151,8 @@ function BrandDataTab() {
           </form>
         </CardBody>
       </Card>
+      <AiModeCard />
+      <ConnectedAccountsCard />
       {canManage && (
         <Card>
           <CardHeader
@@ -195,6 +207,7 @@ function ProfileEditor({ active }: { active: BrandProfileRow | null }) {
   const { org } = useOrg();
   const { brand, can } = useBrand();
   const canManage = can('manage');
+  const aiText = useFeature('aiText');
   const save = useSaveProfile(brand.id);
   const [params, setParams] = useSearchParams();
 
@@ -202,6 +215,24 @@ function ProfileEditor({ active }: { active: BrandProfileRow | null }) {
   const [draft, setDraft] = useState<BrandProfileData>(saved);
   const [note, setNote] = useState('');
   const [historyOpen, setHistoryOpen] = useState(false);
+  const queryClient = useQueryClient();
+  // Logotipos subidos aquí y aún sin guardar, y los que van en el guardado en curso.
+  const pendingLogos = useRef(new Set<string>());
+  const savingLogos = useRef(new Set<string>());
+
+  // Al salir sin guardar, los logotipos subidos que no llegaron a ninguna versión se borran de la biblioteca.
+  useEffect(() => {
+    const brandId = brand.id;
+    const pending = pendingLogos.current;
+    const saving = savingLogos.current;
+    return () => {
+      const orphans = logosToDiscard(pending, saving);
+      if (orphans.length === 0) return;
+      void deleteAssets(orphans)
+        .catch(() => undefined)
+        .finally(() => queryClient.invalidateQueries({ queryKey: assetKeys.all(brandId) }));
+    };
+  }, [brand.id, queryClient]);
 
   const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(saved), [draft, saved]);
   const completeness = useMemo(() => profileCompleteness(draft), [draft]);
@@ -218,17 +249,23 @@ function ProfileEditor({ active }: { active: BrandProfileRow | null }) {
     SECTION_TAB[requested as keyof typeof SECTION_TAB] ??
     (TABS.some((t) => t.value === requested) ? (requested as TabValue) : 'negocio');
 
-  function persist(data: BrandProfileData, changeNote: string, onDone?: () => void) {
+  function persist(data: BrandProfileData, changeNote: string, onDone?: () => void, source: ProvenanceSource = 'user') {
     const clean = normalizeProfile(data);
-    const provenance = nextProvenance(parseProvenance(active?.provenance), active ? saved : null, clean, 'user');
-    save.mutate(
-      { data: clean, provenance, note: changeNote },
-      {
-        onSuccess: (row) => {
-          toast.success(`Perfil guardado (versión ${row.version})`);
-          onDone?.();
-        },
-        onError: (e) => toast.error(translateError(e)),
+    const provenance = nextProvenance(parseProvenance(active?.provenance), active ? saved : null, clean, source);
+    // Las versiones guardadas (también al restaurar) enlazan estos logotipos: no se tocan al salir.
+    savingLogos.current.clear();
+    clean.visual.logoAssetIds.forEach((id) => savingLogos.current.add(id));
+    // Con la promesa y no con los avisos de `mutate`: al guardar llega una versión nueva, el editor se
+    // vuelve a montar (cambia su `key`) y los avisos de `mutate` de un componente desmontado no se ejecutan.
+    save.mutateAsync({ data: clean, provenance, note: changeNote }).then(
+      (row) => {
+        settleSaved(pendingLogos.current, clean.visual.logoAssetIds);
+        toast.success(`Perfil guardado (versión ${row.version})`);
+        onDone?.();
+      },
+      (e: unknown) => {
+        savingLogos.current.clear();
+        toast.error(translateError(e));
       },
     );
   }
@@ -257,7 +294,7 @@ function ProfileEditor({ active }: { active: BrandProfileRow | null }) {
             </Button>
             <Button variant="secondary" onClick={exportConfig} data-testid="profile-export">
               <Download className="h-4 w-4" aria-hidden />
-              Exportar JSON
+              Descargar configuración
             </Button>
           </>
         }
@@ -284,13 +321,24 @@ function ProfileEditor({ active }: { active: BrandProfileRow | null }) {
           ).map(([value, Section]) => (
             <TabsContent key={value} value={value}>
               <Card>
-                <CardBody>
+                <CardBody className={value === 'voz' ? 'space-y-8' : undefined}>
                   <Section {...sectionProps} />
+                  {value === 'voz' && (
+                    <section aria-labelledby="publishing-rules-title" className="space-y-4 border-t border-border pt-6">
+                      <div>
+                        <h2 id="publishing-rules-title" className="text-base">
+                          Reglas de publicación
+                        </h2>
+                        <p className="text-sm text-muted">Las usa el verificador de marca antes de publicar.</p>
+                      </div>
+                      <PublishingRulesSection {...sectionProps} />
+                    </section>
+                  )}
                 </CardBody>
               </Card>
             </TabsContent>
           ))}
-          <TabsContent value="visual">
+          <TabsContent value="visual" className="space-y-6">
             <Card>
               <CardBody className="space-y-6">
                 <LogoManager
@@ -298,13 +346,27 @@ function ProfileEditor({ active }: { active: BrandProfileRow | null }) {
                   brandId={brand.id}
                   ids={draft.visual.logoAssetIds}
                   onChange={(logoAssetIds) => setDraft((d) => ({ ...d, visual: { ...d.visual, logoAssetIds } }))}
+                  pending={pendingLogos}
                   disabled={!canManage}
                 />
                 <VisualSection {...sectionProps} />
               </CardBody>
             </Card>
+            <BrandFontsCard organizationId={org.id} brandId={brand.id} canManage={canManage} />
           </TabsContent>
-          <TabsContent value="fuentes">
+          <TabsContent value="fuentes" className="space-y-6">
+            {/* En modo agencia el servidor rechaza la IA de texto (`agency_mode`): no se ofrece. */}
+            {canManage && aiText && brand.ai_mode !== 'agency' && (
+              <ProfileProposalFromSources
+                brandId={brand.id}
+                currentProfile={active ? saved : null}
+                blockedReason={dirty ? 'Guarda o descarta antes los cambios del perfil.' : undefined}
+                // Lo aceptado se guarda como versión nueva; las secciones que cambian quedan como «propuestas por la IA».
+                onAccept={(profile, fields) =>
+                  persist(profile, `Propuesta de la IA: ${fields.length} campos aceptados`, undefined, 'ai')
+                }
+              />
+            )}
             <SourcesCard organizationId={org.id} brandId={brand.id} canManage={canManage} />
           </TabsContent>
           <TabsContent value="datos">

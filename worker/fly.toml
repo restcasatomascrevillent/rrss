@@ -1,0 +1,62 @@
+# Trabajador de medios en Fly.io (docs/alojamiento.md).
+#
+# Una máquina bajo demanda en Fráncfort: está PARADA; la base de datos la
+# arranca con la API de máquinas de Fly cuando hay trabajo en la cola
+# (private.media_worker_wake, migración 20261208010000). El proceso vacía la
+# cola en modo `drain`, sale con código 0 y la máquina se queda parada: solo se
+# paga el rato que trabaja (más el disco de la imagen parada).
+#
+# Este archivo vive en `worker/` y las rutas son relativas a esta carpeta:
+#   · Panel de Fly, «Deploy from GitHub»: directorio de trabajo `worker` y
+#     ruta de configuración `fly.toml` (relativa a ese directorio; NO
+#     `worker/fly.toml`, que buscaría worker/worker/fly.toml).
+#   · GitHub Actions (.github/workflows/worker-fly.yml) y el script local:
+#     `flyctl deploy worker --config fly.toml`.
+#
+# `app` es el nombre con el que se crea la app en Fly. Los nombres son únicos
+# en todo Fly: si está cogido, se usa otro y se cambia también aquí.
+app = "rrss-worker"
+primary_region = "fra"
+
+# Apagado ordenado: el trabajador atiende SIGTERM (deja de reclamar y devuelve
+# a la cola lo que tenga a medias con release_job, sin gastar intento). Debe ser
+# mayor que WORKER_SHUTDOWN_GRACE_MS; el máximo de Fly es 300 s.
+kill_signal = "SIGTERM"
+kill_timeout = 30
+
+# Margen para FFmpeg con vídeos de móvil grandes: 1 GB de intercambio en el
+# disco de la máquina, además de los 2 GB de memoria.
+swap_size_mb = 1024
+
+[build]
+  # worker/Dockerfile; la última etapa (`runtime`) es la imagen de ejecución.
+  dockerfile = "Dockerfile"
+
+[env]
+  WORKER_MODE = "drain"              # vacía la cola y sale
+  # 30 s con la cola vacía antes de salir: recoge lo que llegue justo detrás y
+  # deja la máquina viva lo bastante para las comprobaciones de arranque de Fly
+  # al desplegar (un proceso que sale enseguida parece un fallo).
+  WORKER_IDLE_EXIT_MS = "30000"
+  WORKER_SHUTDOWN_GRACE_MS = "20000" # al apagar, 20 s para terminar lo que está en curso
+  WORKER_MEDIA_STORAGE = "auto"      # solo en modo service-key; por el intermediario, R2 o Supabase lo decide worker-gateway
+  # SUPABASE_URL y WORKER_GATEWAY_TOKEN van como SECRETOS de la app en
+  # Fly (panel → Secrets), nunca aquí. La clave de servicio de Supabase NO va
+  # a Fly: el trabajador entra por la función worker-gateway con su token y
+  # no arranca si en Fly encuentra SUPABASE_SERVICE_ROLE_KEY.
+
+# shared-cpu-2x con 2 GB: FFmpeg usa los dos núcleos y monta un reel vertical
+# 1080×1920 sin quedarse sin memoria (worker/README.md, «Tiempos medidos»).
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "2gb"
+
+# Al salir el proceso (también con código 0), Fly NO la vuelve a arrancar: se
+# queda parada hasta la próxima llamada de la base de datos. Los valores que
+# admite Fly son "always", "never" y "on-failure" (el de por defecto, que la
+# reiniciaría si falla); con "never", un fallo tampoco la deja en bucle.
+[[restart]]
+  policy = "never"
+
+# Sin [http_service] ni [[services]]: el trabajador no abre ningún puerto y la
+# app no es accesible desde internet.

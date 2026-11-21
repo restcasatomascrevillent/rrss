@@ -16,6 +16,8 @@ interface Item {
   status: Status;
   message?: string;
   sha256?: string;
+  /** Porcentaje real de bytes subidos (solo mientras se sube). */
+  progress?: number;
 }
 
 const STATUS_TEXT: Record<Status, string> = {
@@ -45,9 +47,15 @@ export function UploadPanel({ organizationId, brandId }: UploadPanelProps) {
 
   const upload = useCallback(
     async (item: Item, sha256: string) => {
-      patch(item.id, { status: 'uploading', message: undefined });
+      patch(item.id, { status: 'uploading', message: undefined, progress: 0 });
       try {
-        await uploadAsset({ organizationId, brandId, file: item.file, sha256 });
+        await uploadAsset({
+          organizationId,
+          brandId,
+          file: item.file,
+          sha256,
+          onProgress: (progress) => patch(item.id, { progress }),
+        });
         patch(item.id, { status: 'done' });
         await queryClient.invalidateQueries({ queryKey: assetKeys.all(brandId) });
       } catch (error) {
@@ -174,9 +182,26 @@ export function UploadPanel({ organizationId, brandId }: UploadPanelProps) {
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{item.file.name}</p>
                   <p className={cn('text-xs', item.status === 'error' ? 'text-danger' : 'text-muted')}>
-                    {STATUS_TEXT[item.status]} · {formatBytes(item.file.size)}
+                    {STATUS_TEXT[item.status]}
+                    {item.status === 'uploading' && ` ${item.progress ?? 0} %`} · {formatBytes(item.file.size)}
                     {item.message && ` · ${item.message}`}
                   </p>
+                  {item.status === 'uploading' && (
+                    <div
+                      role="progressbar"
+                      aria-label={`Progreso de ${item.file.name}`}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={item.progress ?? 0}
+                      data-testid="upload-progress"
+                      className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-subtle"
+                    >
+                      <div
+                        className="h-full rounded-full bg-primary transition-[width]"
+                        style={{ width: `${item.progress ?? 0}%` }}
+                      />
+                    </div>
+                  )}
                 </div>
                 {item.status === 'duplicate' && (
                   <div className="flex gap-2">

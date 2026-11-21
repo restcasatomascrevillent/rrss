@@ -6,3 +6,6 @@ export * from './Dialog';
 export * from './Menu';
 export * from './Tabs';
 export * from './Feedback';
+export * from './PageHeader';
+export * from './MoreMenu';
+export * from './ActionNotice';

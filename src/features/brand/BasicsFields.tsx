@@ -1,23 +1,11 @@
 import { useMemo } from 'react';
 import { Field, Input, Select } from '@/components/ui';
 import { LOCALES } from '@/config/app';
+import { sortTimeZones, timeZoneLabel } from '@/lib/texts';
 import type { BrandBasics } from './config';
 
-const FALLBACK_TIMEZONES = [
-  'Europe/Madrid',
-  'Atlantic/Canary',
-  'Europe/Lisbon',
-  'Europe/London',
-  'Europe/Paris',
-  'America/Mexico_City',
-  'America/Bogota',
-  'America/Argentina/Buenos_Aires',
-  'America/New_York',
-  'UTC',
-];
-
 function timezones(current: string): string[] {
-  let list: string[] = FALLBACK_TIMEZONES;
+  let list: string[] = [];
   try {
     const supported = (Intl as unknown as { supportedValuesOf?: (key: string) => string[] }).supportedValuesOf?.(
       'timeZone',
@@ -26,7 +14,7 @@ function timezones(current: string): string[] {
   } catch {
     /* navegador antiguo: lista corta */
   }
-  return list.includes(current) ? list : [current, ...list];
+  return sortTimeZones(list, current);
 }
 
 interface BasicsFieldsProps {
@@ -106,7 +94,7 @@ export function BasicsFields({ value, onChange, disabled, nameError }: BasicsFie
           <Select {...p} disabled={disabled} value={value.timezone} onChange={(e) => set({ timezone: e.target.value })}>
             {zones.map((z) => (
               <option key={z} value={z}>
-                {z.replaceAll('_', ' ')}
+                {timeZoneLabel(z)}
               </option>
             ))}
           </Select>

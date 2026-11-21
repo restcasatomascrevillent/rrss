@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "fundido-suave",
+  "name": "Fundido suave",
+  "description": "Fotos con movimiento lento que se funden entre sí. Texto abajo sobre una franja oscura. Música de fondo.",
+  "canvas": { "width": 1080, "height": 1920, "fps": 30 },
+  "timing": { "photoSeconds": 2.5, "maxClipSeconds": 4, "maxTotalSeconds": 30 },
+  "transition": { "type": "fade", "seconds": 0.5 },
+  "photoMotion": { "type": "alternate", "amount": 0.08 },
+  "text": {
+    "font": "default",
+    "sizeRatio": 0.06,
+    "color": "#FFFFFF",
+    "position": "bottom",
+    "marginRatio": 0.22,
+    "maxWidthRatio": 0.8,
+    "lineHeight": 1.45,
+    "box": { "color": "#000000", "opacity": 0.55, "paddingRatio": 0.35 },
+    "outline": null,
+    "fadeSeconds": 0.3
+  },
+  "audio": { "musicVolume": 0.35, "clipVolume": 0, "fadeInSeconds": 0.5, "fadeOutSeconds": 1 },
+  "export": { "crf": 21, "preset": "veryfast", "audioBitrateKbps": 128 }
+}

@@ -1,0 +1,73 @@
+# Trabajador de medios → Fly.io (ALTERNATIVA al «Deploy from GitHub» del panel
+# de Fly, que es el camino principal: docs/alojamiento.md, §4).
+#
+# Construye worker/ con el constructor remoto de Fly y lo despliega con
+# worker/fly.toml. No hace falta flyctl en ningún ordenador.
+#
+#   · A mano: Actions → «Trabajador de medios · Fly.io» → Run workflow.
+#   · Al subir cambios de worker/ a `staging`, solo si la variable del
+#     repositorio FLY_DEPLOY_FROM_ACTIONS vale `true` (Settings → Secrets and
+#     variables → Actions → Variables). Apagado por defecto: si también está
+#     encendido el despliegue automático del panel de Fly, se desplegaría dos
+#     veces.
+#
+# Secreto del repositorio: FLY_API_TOKEN, un token de despliegue de la app del
+# trabajador (panel de Fly → la app → Tokens). La app y sus secretos
+# (SUPABASE_URL y WORKER_GATEWAY_TOKEN; nunca la clave de servicio) tienen que existir antes: panel de
+# Fly o el flujo «Trabajador de medios · preparar Fly.io» (worker-fly-preparar.yml).
+name: Trabajador de medios · Fly.io
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: Nombre de la app en Fly (vacío = el de worker/fly.toml)
+        required: false
+        default: ''
+  push:
+    branches: [staging]
+    paths:
+      - 'worker/**'
+      - '.github/workflows/worker-fly.yml'
+permissions:
+  contents: read
+concurrency:
+  group: worker-fly
+  cancel-in-progress: false
+jobs:
+  desplegar:
+    if: github.event_name == 'workflow_dispatch' || vars.FLY_DEPLOY_FROM_ACTIONS == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      # Versión fijada por commit (etiqueta 1.6) y flyctl fijado.
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1
+        with:
+          version: 0.5.5
+      - name: Desplegar
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          APP: ${{ inputs.app }}
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::error::Falta el secreto del repositorio FLY_API_TOKEN (docs/alojamiento.md)."
+            exit 1
+          fi
+          # Sin comprobaciones de humo: la máquina sale sola al vaciar la cola y Fly
+          # lo tomaría por un fallo.
+          args=(deploy worker --config fly.toml --remote-only --ha=false --strategy immediate --smoke-checks=false --yes)
+          if [ -n "$APP" ]; then
+            if ! [[ "$APP" =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]]; then
+              echo "::error::Nombre de app no válido."
+              exit 1
+            fi
+            args+=(--app "$APP")
+          fi
+          flyctl "${args[@]}"
+      - name: Máquinas de la app (para Plataforma → Integraciones)
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          APP: ${{ inputs.app }}
+        run: |
+          # Solo identificador, región y estado: nada secreto.
+          if [ -n "$APP" ]; then flyctl machines list --app "$APP"; else flyctl machines list --config worker/fly.toml; fi

@@ -24,16 +24,21 @@ export function ActivityList({ page, isPending, error, onRetry }: ActivityListPr
     );
   }
   const nameOf = (id: string) => page.names.get(id) ?? '';
+  // Las filas que otra ya cuenta (altas de miembro al aceptar una invitación) no se repiten.
+  const items = page.rows.flatMap((row) => {
+    const text = describeAudit(row, nameOf);
+    return text === null ? [] : [{ row, text }];
+  });
   return (
     <ul className="divide-y divide-border" data-testid="activity-list">
-      {page.rows.map((row) => (
+      {items.map(({ row, text }) => (
         <li
           key={row.id}
           className="flex flex-col gap-0.5 px-5 py-3 text-sm sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
         >
           <span className="min-w-0">
             <span className="font-medium">{(row.actor_id && nameOf(row.actor_id)) || 'El sistema'}</span>{' '}
-            {describeAudit(row, nameOf)}
+            {text}
           </span>
           <time dateTime={row.created_at} className="shrink-0 text-xs text-muted">
             {formatDateTime(row.created_at)}

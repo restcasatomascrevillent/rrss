@@ -1,0 +1,91 @@
+# Trabajador de medios → Fly.io: crear la app y poner sus secretos (ALTERNATIVA
+# al panel de Fly; docs/alojamiento.md, §4.4). Solo a mano.
+#
+# Secretos del repositorio que usa (Settings → Secrets and variables → Actions):
+#   · FLY_ORG_TOKEN: token de la ORGANIZACIÓN de Fly (panel → Tokens), solo para
+#     crear la app. Con caducidad corta; bórralo de GitHub en cuanto termine.
+#   · WORKER_GATEWAY_TOKEN: el token del trabajador («rrss_wgt_…»), generado
+#     en Plataforma → Integraciones → Trabajador de medios («Generar token»).
+#     Bórralo de GitHub en cuanto termine: a partir de ahí vive solo en Fly.
+#
+# La clave de servicio de Supabase NO va a Fly (docs/alojamiento.md, §5): el
+# trabajador entra por la función `worker-gateway` con su token. Si la app
+# tenía SUPABASE_SERVICE_ROLE_KEY de antes, este flujo la quita.
+#
+# Lo más seguro es no usar este flujo y poner el token directamente en el
+# panel de Fly (la app → Secrets): así no pasa por GitHub.
+#
+# Nada se imprime: los valores van por la entrada estándar de `flyctl secrets
+# import` y GitHub enmascara los secretos en el registro. Los secretos quedan
+# «preparados» (--stage) y entran en la máquina con el siguiente despliegue.
+name: Trabajador de medios · preparar Fly.io
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: Nombre de la app en Fly
+        required: true
+        default: rrss-worker
+      org:
+        description: Organización de Fly (slug)
+        required: true
+        default: personal
+      supabase_url:
+        description: URL del proyecto de Supabase (staging por defecto)
+        required: true
+        default: https://zzkdrfhqmjfvrdsoguio.supabase.co
+permissions:
+  contents: read
+jobs:
+  preparar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1
+        with:
+          version: 0.5.5
+      - name: Comprobar lo que se ha pedido
+        env:
+          APP: ${{ inputs.app }}
+          ORG: ${{ inputs.org }}
+          SUPABASE_URL: ${{ inputs.supabase_url }}
+          FLY_ORG_TOKEN: ${{ secrets.FLY_ORG_TOKEN }}
+          WORKER_TOKEN: ${{ secrets.WORKER_GATEWAY_TOKEN }}
+        run: |
+          [[ "$APP" =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]] || { echo "::error::Nombre de app no válido."; exit 1; }
+          [[ "$ORG" =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]] || { echo "::error::Organización no válida."; exit 1; }
+          [[ "$SUPABASE_URL" =~ ^https://[a-z0-9]{20}\.supabase\.co$ ]] || { echo "::error::URL de Supabase no válida."; exit 1; }
+          [ -n "$FLY_ORG_TOKEN" ] || { echo "::error::Falta el secreto FLY_ORG_TOKEN."; exit 1; }
+          [ -n "$WORKER_TOKEN" ] || { echo "::error::Falta el secreto WORKER_GATEWAY_TOKEN."; exit 1; }
+          [[ "$WORKER_TOKEN" =~ ^rrss_wgt_[A-Za-z0-9_-]{43}$ ]] || {
+            echo "::error::WORKER_GATEWAY_TOKEN no es un token del trabajador (rrss_wgt_…). Nunca la clave de Supabase."; exit 1; }
+      - name: Crear la app (si no existe)
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_ORG_TOKEN }}
+          APP: ${{ inputs.app }}
+          ORG: ${{ inputs.org }}
+        run: |
+          if flyctl status --app "$APP" >/dev/null 2>&1; then
+            echo "La app $APP ya existe."
+          else
+            flyctl apps create "$APP" --org "$ORG"
+          fi
+      - name: Poner los secretos del trabajador (sin mostrarlos)
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_ORG_TOKEN }}
+          APP: ${{ inputs.app }}
+          SUPABASE_URL: ${{ inputs.supabase_url }}
+          WORKER_TOKEN: ${{ secrets.WORKER_GATEWAY_TOKEN }}
+        run: |
+          printf 'SUPABASE_URL=%s\nWORKER_GATEWAY_TOKEN=%s\n' "$SUPABASE_URL" "$WORKER_TOKEN" \
+            | flyctl secrets import --app "$APP" --stage
+          # La clave de servicio no va a Fly: si quedaba de antes, se quita.
+          if flyctl secrets list --app "$APP" --json | grep -q '"SUPABASE_SERVICE_ROLE_KEY"'; then
+            flyctl secrets unset SUPABASE_SERVICE_ROLE_KEY --app "$APP" --stage
+          fi
+          # Solo los nombres, nunca los valores.
+          flyctl secrets list --app "$APP"
+      - name: Siguiente paso
+        run: |
+          echo "Hecho. Ahora: borra FLY_ORG_TOKEN y WORKER_GATEWAY_TOKEN de los secretos de GitHub,"
+          echo "crea un token de despliegue de la app (panel de Fly → la app → Tokens) y despliega."

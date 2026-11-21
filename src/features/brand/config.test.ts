@@ -51,7 +51,10 @@ describe('exportar e importar la configuración de una marca', () => {
   });
 
   it('explica por qué no vale un archivo', () => {
-    expect(parseBrandConfig('{no es json')).toEqual({ ok: false, errors: ['El archivo no es un JSON válido.'] });
+    expect(parseBrandConfig('{no es json')).toEqual({
+      ok: false,
+      errors: ['El archivo no es una configuración válida.'],
+    });
 
     const otherFormat = parseBrandConfig(
       JSON.stringify({ format: 'otra-cosa', version: 1, brand: { name: 'X' }, profile: {} }),
@@ -115,5 +118,46 @@ describe('normalizeUrl', () => {
     for (const bad of ['', '   ', 'javascript:alert(1)', 'ftp://x.com', 'localhost', 'hola mundo']) {
       expect(normalizeUrl(bad), bad).toBeNull();
     }
+  });
+});
+
+describe('reglas de publicación en la configuración', () => {
+  const rules = brandProfileSchema.parse({
+    voice: {
+      hashtags: { required: ['MiMarca'], recommended: ['Tapas'] },
+      callsToAction: ['Reserva tu mesa'],
+      emojis: { allowed: true, max: 2 },
+    },
+  });
+
+  it('viajan en la exportación y vuelven intactas', () => {
+    const exported = exportBrandConfig(brand, rules);
+    const result = parseBrandConfig(JSON.stringify(exported));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.config.profile.voice.hashtags).toEqual({ required: ['MiMarca'], recommended: ['Tapas'] });
+    expect(result.config.profile.voice.callsToAction).toEqual(['Reserva tu mesa']);
+    expect(result.config.profile.voice.emojis).toEqual({ allowed: true, max: 2 });
+  });
+
+  it('un archivo exportado antes de existir estos campos se importa con valores por defecto', () => {
+    const old = {
+      format: BRAND_CONFIG_FORMAT,
+      version: 1,
+      brand,
+      profile: { voice: { tone: ['Cercano'], forbiddenPhrases: ['gratis'] } },
+    };
+    const result = parseBrandConfig(JSON.stringify(old));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.config.profile.voice.forbiddenPhrases).toEqual(['gratis']);
+    expect(result.config.profile.voice.emojis).toEqual({ allowed: null, max: null });
+    expect(result.config.profile.voice.hashtags.required).toEqual([]);
+  });
+
+  it('un máximo de emojis imposible se rechaza con un mensaje claro', () => {
+    const bad = { format: BRAND_CONFIG_FORMAT, version: 1, brand, profile: { voice: { emojis: { max: -2 } } } };
+    const result = parseBrandConfig(JSON.stringify(bad));
+    expect(result.ok).toBe(false);
   });
 });

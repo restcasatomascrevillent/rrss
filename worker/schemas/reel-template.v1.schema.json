@@ -1,0 +1,304 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,40}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "description": {
+      "default": "",
+      "type": "string",
+      "maxLength": 300
+    },
+    "canvas": {
+      "type": "object",
+      "properties": {
+        "width": {
+          "default": 1080,
+          "type": "integer",
+          "minimum": 180,
+          "maximum": 1080
+        },
+        "height": {
+          "default": 1920,
+          "type": "integer",
+          "minimum": 320,
+          "maximum": 1920
+        },
+        "fps": {
+          "default": 30,
+          "type": "integer",
+          "minimum": 15,
+          "maximum": 60
+        }
+      },
+      "additionalProperties": false
+    },
+    "timing": {
+      "type": "object",
+      "properties": {
+        "photoSeconds": {
+          "default": 2.5,
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 10
+        },
+        "maxClipSeconds": {
+          "default": 4,
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 30
+        },
+        "maxTotalSeconds": {
+          "default": 30,
+          "type": "number",
+          "minimum": 3,
+          "maximum": 90
+        }
+      },
+      "additionalProperties": false
+    },
+    "transition": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "default": "fade",
+          "type": "string",
+          "enum": [
+            "cut",
+            "fade",
+            "fadeblack",
+            "dissolve",
+            "slideleft",
+            "slideup"
+          ]
+        },
+        "seconds": {
+          "default": 0.4,
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2
+        }
+      },
+      "additionalProperties": false
+    },
+    "photoMotion": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "default": "alternate",
+          "type": "string",
+          "enum": [
+            "none",
+            "zoom-in",
+            "zoom-out",
+            "pan-right",
+            "pan-left",
+            "alternate"
+          ]
+        },
+        "amount": {
+          "default": 0.08,
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.3
+        }
+      },
+      "additionalProperties": false
+    },
+    "text": {
+      "type": "object",
+      "properties": {
+        "font": {
+          "default": "default",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,60}$"
+        },
+        "sizeRatio": {
+          "default": 0.06,
+          "type": "number",
+          "minimum": 0.02,
+          "maximum": 0.15
+        },
+        "color": {
+          "default": "#FFFFFF",
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "position": {
+          "default": "bottom",
+          "type": "string",
+          "enum": [
+            "top",
+            "center",
+            "bottom"
+          ]
+        },
+        "marginRatio": {
+          "default": 0.2,
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.4
+        },
+        "maxWidthRatio": {
+          "default": 0.84,
+          "type": "number",
+          "minimum": 0.4,
+          "maximum": 1
+        },
+        "lineHeight": {
+          "default": 1.3,
+          "type": "number",
+          "minimum": 1,
+          "maximum": 2
+        },
+        "box": {
+          "default": null,
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "color": {
+                  "default": "#000000",
+                  "type": "string",
+                  "pattern": "^#[0-9a-fA-F]{6}$"
+                },
+                "opacity": {
+                  "default": 0.55,
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "paddingRatio": {
+                  "default": 0.35,
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "outline": {
+          "default": null,
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "color": {
+                  "default": "#000000",
+                  "type": "string",
+                  "pattern": "^#[0-9a-fA-F]{6}$"
+                },
+                "widthRatio": {
+                  "default": 0.06,
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 0.2
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fadeSeconds": {
+          "default": 0.25,
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "audio": {
+      "type": "object",
+      "properties": {
+        "musicVolume": {
+          "default": 0.35,
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "clipVolume": {
+          "default": 0,
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "fadeInSeconds": {
+          "default": 0.5,
+          "type": "number",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "fadeOutSeconds": {
+          "default": 1,
+          "type": "number",
+          "minimum": 0,
+          "maximum": 5
+        }
+      },
+      "additionalProperties": false
+    },
+    "export": {
+      "type": "object",
+      "properties": {
+        "crf": {
+          "default": 21,
+          "type": "integer",
+          "minimum": 16,
+          "maximum": 32
+        },
+        "preset": {
+          "default": "veryfast",
+          "type": "string",
+          "enum": [
+            "ultrafast",
+            "superfast",
+            "veryfast",
+            "faster",
+            "fast",
+            "medium"
+          ]
+        },
+        "audioBitrateKbps": {
+          "default": 128,
+          "type": "integer",
+          "minimum": 64,
+          "maximum": 256
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "id",
+    "name",
+    "canvas",
+    "timing",
+    "transition",
+    "photoMotion",
+    "text",
+    "audio",
+    "export"
+  ],
+  "additionalProperties": false
+}

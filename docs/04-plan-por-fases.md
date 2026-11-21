@@ -8,7 +8,7 @@ desarrollo asistido y validación. Son estimaciones, no compromisos.
 |---|---|---|---|
 | 0 | Auditoría, arquitectura, modelo de datos, diseño, plan | S | Hecha |
 | 1 | Núcleo SaaS multiempresa | M | Código hecho; pendiente de desplegar en el Supabase nuevo |
-| 2 | Estudio creativo con IA | L | Pendiente |
+| 2 | Estudio creativo con IA | L | Empezada: cimientos (consumo, cupos, cola, servicio con proveedor simulado). Sin proveedor real ni interfaz |
 | 3 | Calendario, aprobaciones y publicación real | L | Pendiente |
 | 4 | Planificación, agentes y automatizaciones | L | Pendiente |
 | 5 | Analítica e informes | M | Pendiente |
@@ -44,6 +44,20 @@ mensaje claro; pruebas de los flujos con proveedores simulados.
 
 **Decisiones del dueño antes de empezar**: proveedor o proveedores de IA y
 presupuesto mensual; dónde alojar el trabajador de medios.
+
+**Hecho sin esperar a esas decisiones** (16/11/2026; solo base de datos y
+servicio, probado con proveedor simulado):
+
+- [x] Registro de generaciones, libro de consumo y cupo mensual por
+      organización, impuesto por la base de datos.
+- [x] Un cupo agotado detiene la generación con un mensaje claro, también con
+      reservas simultáneas.
+- [x] Coste de IA por organización y periodo (función SQL; falta la pantalla).
+- [x] Cola de trabajos: idempotencia, reserva con caducidad, reintentos,
+      cancelación.
+- [x] Contrato del servicio de IA y flujo completo con proveedor simulado.
+- [ ] Todo lo demás de la fase: adaptador real, Edge Function, fuentes de marca,
+      textos, propuestas visuales, editor, verificador, trabajador de medios.
 
 ## Fase 3 · Calendario y publicación
 
@@ -104,7 +118,7 @@ cambia sus límites sin desplegar.
 | 10 | Consultar el historial | 1–3 | Parcial: auditoría y versiones de marca |
 | 11 | Administrar varias empresas desde una cuenta de agencia | 1 | Implementado |
 | 12 | Ningún cliente accede a datos ajenos | 1 | Probado en base de datos |
-| 13 | Coste de IA por empresa | 2 | Pendiente |
+| 13 | Coste de IA por empresa | 2 | Parcial: registrado y consultable por función SQL, probado; sin pantalla y sin proveedor real |
 | 14 | Añadir marcas sin tocar la lógica | 1 | Implementado |
 | 15 | Desplegar sin interrumpir | 1–6 | Circuito definido; pendiente de montar los entornos |
 

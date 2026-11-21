@@ -20,7 +20,7 @@ export function sanitizeFileName(name: string): string {
   return hasExtension ? `${base}.${candidate.toLowerCase()}` : base;
 }
 
-export type StorageFolder = 'media' | 'sources';
+export type StorageFolder = 'media' | 'sources' | 'fonts';
 
 export function buildStoragePath(
   organizationId: string,
@@ -106,5 +106,60 @@ export function readMediaDimensions(file: File): Promise<MediaDimensions> {
     } else {
       finish(NO_DIMENSIONS);
     }
+  });
+}
+
+/** Porcentaje entero (0-100) de bytes enviados; 0 si aún no se conoce el total. */
+export function uploadPercent(loaded: number, total: number): number {
+  if (!(total > 0) || !(loaded > 0)) return 0;
+  return Math.min(100, Math.floor((loaded / total) * 100));
+}
+
+export interface XhrUploadOptions {
+  url: string;
+  /** POST (API de Supabase Storage, por defecto) o PUT (URL firmada de R2). */
+  method?: 'POST' | 'PUT';
+  headers: Record<string, string>;
+  body: Blob;
+  /** Se llama con el porcentaje real de bytes enviados (0-100). */
+  onProgress?: (percent: number) => void;
+}
+
+/** Error de una subida: conserva el estado HTTP y el mensaje que devolvió el servidor. */
+export interface XhrUploadError {
+  message: string;
+  statusCode: number;
+}
+
+/**
+ * Sube un cuerpo con XMLHttpRequest para poder medir el progreso real
+ * (`fetch` no lo permite). Rechaza con `XhrUploadError`.
+ */
+export function xhrUpload({ url, method = 'POST', headers, body, onProgress }: XhrUploadOptions): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, url);
+    for (const [name, value] of Object.entries(headers)) xhr.setRequestHeader(name, value);
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress?.(uploadPercent(event.loaded, event.total));
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress?.(100);
+        return resolve();
+      }
+      let message = `Error ${xhr.status}`;
+      try {
+        const parsed = JSON.parse(xhr.responseText) as { message?: unknown; error?: unknown };
+        const text = parsed.message ?? parsed.error;
+        if (typeof text === 'string' && text) message = text;
+      } catch {
+        // Respuesta que no es JSON: nos quedamos con el estado.
+      }
+      reject({ message, statusCode: xhr.status } satisfies XhrUploadError);
+    };
+    xhr.onerror = () => reject({ message: 'Failed to fetch', statusCode: 0 } satisfies XhrUploadError);
+    xhr.onabort = () => reject({ message: 'Subida cancelada.', statusCode: 0 } satisfies XhrUploadError);
+    xhr.send(body);
   });
 }

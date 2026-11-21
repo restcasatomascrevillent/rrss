@@ -9,3 +9,4 @@ playwright-report
 coverage
 *.log
 .vercel
+.e2e

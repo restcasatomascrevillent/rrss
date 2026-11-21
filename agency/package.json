@@ -1,0 +1,24 @@
+{
+  "name": "rrss-agency",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Herramienta de la agencia: la sesión de Claude Code toma encargos, prepara borradores y los entrega como un usuario más de la plataforma",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "agencia": "node --import ./src/register.ts src/main.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7",
+    "vite": "^5.4.21"
+  },
+  "overrides": {
+    "rollup": "4.68.3"
+  }
+}

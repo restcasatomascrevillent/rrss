@@ -1,12 +1,17 @@
-import { ExternalLink, Trash2 } from 'lucide-react';
+import { ExternalLink, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Badge, Button, ConfirmDialog, Dialog, Field, Input, Select, Textarea } from '@/components/ui';
+import { mediaWorkerEnabled } from '@/config/app';
 import { StringListInput } from '@/features/brand/editor/inputs';
+import { canEditPhoto } from '@/features/photo-edit/api';
+import { PhotoEditDialog } from '@/features/photo-edit/PhotoEditDialog';
 import type { AssetKind, MediaAssetRow } from '@/lib/database.types';
 import { translateError } from '@/lib/errors';
 import { formatBytes, formatDateTime } from '@/lib/utils';
 import { useAssetMutations } from './api';
+import { CropPanel } from './CropPanel';
+import { canCrop } from './crops';
 import { ASSET_KIND_LABEL, ASSET_KINDS, parseRights, rightsExpired, serializeRights, type AssetRights } from './labels';
 
 interface AssetDialogProps {
@@ -14,6 +19,8 @@ interface AssetDialogProps {
   url: string | undefined;
   canEdit: boolean;
   onClose: () => void;
+  /** Abre otra ficha de la biblioteca (los recortes de esta foto). */
+  onOpenAsset?: (assetId: string) => void;
 }
 
 function formatDuration(ms: number): string {
@@ -21,7 +28,7 @@ function formatDuration(ms: number): string {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 }
 
-export function AssetDialog({ asset, url, canEdit, onClose }: AssetDialogProps) {
+export function AssetDialog({ asset, url, canEdit, onClose, onOpenAsset }: AssetDialogProps) {
   const { update, remove } = useAssetMutations(asset.brand_id);
   const [fileName, setFileName] = useState(asset.file_name);
   const [kind, setKind] = useState<AssetKind>(asset.kind);
@@ -29,6 +36,7 @@ export function AssetDialog({ asset, url, canEdit, onClose }: AssetDialogProps) 
   const [tags, setTags] = useState<string[]>(asset.tags);
   const [rights, setRights] = useState<AssetRights>(() => parseRights(asset.rights));
   const [confirming, setConfirming] = useState(false);
+  const [editingPhoto, setEditingPhoto] = useState(false);
 
   const setRight = (key: keyof AssetRights, value: string) => setRights((current) => ({ ...current, [key]: value }));
   const details = [
@@ -116,6 +124,16 @@ export function AssetDialog({ asset, url, canEdit, onClose }: AssetDialogProps) 
               <ExternalLink className="h-4 w-4" aria-hidden />
               Abrir el archivo original
             </a>
+          )}
+          {canEdit && url && canEditPhoto(asset) && (
+            <Button variant="secondary" onClick={() => setEditingPhoto(true)} data-testid="asset-edit-photo">
+              <SlidersHorizontal className="h-4 w-4" aria-hidden />
+              Editar foto
+            </Button>
+          )}
+
+          {mediaWorkerEnabled() && canCrop(asset) && onOpenAsset && (
+            <CropPanel asset={asset} url={url} canEdit={canEdit} onOpenAsset={onOpenAsset} />
           )}
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -223,6 +241,17 @@ export function AssetDialog({ asset, url, canEdit, onClose }: AssetDialogProps) 
         </div>
       </Dialog>
 
+      {editingPhoto && (
+        <PhotoEditDialog
+          asset={asset}
+          url={url}
+          open
+          onOpenChange={setEditingPhoto}
+          resultLabel="Abrir"
+          onResult={onOpenAsset ? (row) => onOpenAsset(row.id) : undefined}
+        />
+      )}
+
       <ConfirmDialog
         open={confirming}
         onOpenChange={setConfirming}
@@ -231,16 +260,18 @@ export function AssetDialog({ asset, url, canEdit, onClose }: AssetDialogProps) 
         confirmLabel="Eliminar"
         loading={remove.isPending}
         onConfirm={() =>
-          remove.mutate(asset, {
-            onSuccess: () => {
+          // Con la promesa y no con los avisos de `mutate`: al borrar, la rejilla se refresca y esta ficha se
+          // desmonta; si eso ocurre antes de que termine la mutación, los avisos de `mutate` no se ejecutan.
+          remove.mutateAsync(asset).then(
+            () => {
               toast.success('Archivo eliminado');
               onClose();
             },
-            onError: (e) => {
+            (e: unknown) => {
               setConfirming(false);
               toast.error(translateError(e));
             },
-          })
+          )
         }
       />
     </>

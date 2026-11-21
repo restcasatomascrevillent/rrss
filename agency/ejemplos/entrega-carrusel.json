@@ -1,0 +1,117 @@
+{
+  "format": "rrss.agency-delivery",
+  "version": 1,
+  "title": "Menú de otoño · carrusel",
+  "copy": {
+    "caption": "Tres platos para el otoño. Desliza y elige el tuyo: los tenemos toda la semana.",
+    "hashtags": ["otoño", "cocinadetemporada"],
+    "mentions": [],
+    "altText": "Tres platos de otoño: guiso, setas y tarta de manzana.",
+    "callToAction": { "label": "Reserva tu mesa", "url": "https://ejemplo.test/reservas" }
+  },
+  "document": {
+    "schemaVersion": 4,
+    "canvas": { "aspectRatio": "4:5", "width": 1080, "height": 1350, "backgroundColor": "#1F2937" },
+    "pages": [
+      {
+        "id": "portada",
+        "name": "Portada",
+        "layers": [
+          {
+            "id": "portada-foto",
+            "type": "image",
+            "name": "Foto del guiso",
+            "source": { "kind": "asset", "assetId": "00000000-0000-4000-8000-000000000001" },
+            "x": 0,
+            "y": 0,
+            "width": 1080,
+            "height": 1350,
+            "fit": "cover",
+            "anchor": { "x": "stretch", "y": "stretch" }
+          },
+          {
+            "id": "portada-titular",
+            "type": "text",
+            "text": "Menú de otoño",
+            "fontFamily": "Inter",
+            "fontSize": 110,
+            "fontWeight": 700,
+            "color": "#FFFFFF",
+            "align": "center",
+            "x": 60,
+            "y": 560,
+            "width": 960,
+            "height": 200,
+            "anchor": { "x": "center", "y": "center" }
+          }
+        ]
+      },
+      {
+        "id": "setas",
+        "name": "Setas",
+        "layers": [
+          {
+            "id": "setas-foto",
+            "type": "image",
+            "name": "Foto de las setas",
+            "source": { "kind": "asset", "assetId": "00000000-0000-4000-8000-000000000002" },
+            "x": 0,
+            "y": 0,
+            "width": 1080,
+            "height": 1350,
+            "fit": "cover",
+            "anchor": { "x": "stretch", "y": "stretch" }
+          },
+          {
+            "id": "setas-franja",
+            "type": "shape",
+            "shape": "rectangle",
+            "x": 0,
+            "y": 1050,
+            "width": 1080,
+            "height": 300,
+            "fill": "#1F2937",
+            "anchor": { "x": "stretch", "y": "bottom" }
+          },
+          {
+            "id": "setas-texto",
+            "type": "text",
+            "text": "Setas de temporada",
+            "fontFamily": "Inter",
+            "fontSize": 80,
+            "fontWeight": 700,
+            "color": "#FFFFFF",
+            "align": "center",
+            "x": 60,
+            "y": 1120,
+            "width": 960,
+            "height": 160,
+            "anchor": { "x": "center", "y": "bottom" }
+          }
+        ]
+      },
+      {
+        "id": "cierre",
+        "name": "Cierre",
+        "layers": [
+          {
+            "id": "cierre-texto",
+            "type": "text",
+            "text": "Toda la semana\nReserva en la web",
+            "fontFamily": "Inter",
+            "fontSize": 90,
+            "fontWeight": 700,
+            "color": "#FFFFFF",
+            "align": "center",
+            "lineHeight": 1.3,
+            "x": 60,
+            "y": 500,
+            "width": 960,
+            "height": 300,
+            "anchor": { "x": "center", "y": "center" }
+          }
+        ]
+      }
+    ]
+  }
+}

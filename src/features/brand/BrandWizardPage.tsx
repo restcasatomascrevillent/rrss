@@ -354,14 +354,14 @@ export function BrandWizardPage() {
                 </p>
                 <Button variant="secondary" size="sm" className="mt-3" onClick={() => importRef.current?.click()}>
                   <FileJson className="h-4 w-4" aria-hidden />
-                  Importar configuración JSON
+                  Subir una configuración guardada
                 </Button>
                 <input
                   ref={importRef}
                   type="file"
                   accept="application/json,.json"
                   className="sr-only"
-                  aria-label="Importar configuración JSON"
+                  aria-label="Subir una configuración guardada"
                   data-testid="wizard-import-input"
                   onChange={(e) => {
                     const file = e.target.files?.[0];

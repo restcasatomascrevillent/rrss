@@ -1,6 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { SOURCE_MIME_TYPES, STORAGE_BUCKET } from '@/config/app';
-import type { BrandProfileRow, BrandRow, BrandStatus, Json, KnowledgeSourceRow } from '@/lib/database.types';
+import type {
+  BrandProfileRow,
+  BrandRow,
+  BrandStatus,
+  Json,
+  KnowledgeSourceListRow,
+  KnowledgeSourceRow,
+} from '@/lib/database.types';
 import { unwrap } from '@/lib/errors';
 import { buildStoragePath, sourceKindFromMime, validateFile } from '@/lib/files';
 import { supabase } from '@/lib/supabase';
@@ -115,17 +122,26 @@ export function useUpdateBrand(orgId: string, brandId: string) {
 
 // ── Fuentes de conocimiento ──────────────────────────────────────────────
 
+/** Columnas de la lista de fuentes: todas menos el texto extraído, que puede pesar cientos de KB. */
+const SOURCE_LIST_COLUMNS =
+  'id, brand_id, organization_id, kind, title, storage_path, url, mime_type, bytes, status, error, created_by, created_at, updated_at, extracted_chars, extraction, extracted_at, extraction_job_id';
+
+/** Mientras alguna fuente se está analizando, la lista se refresca sola cada pocos segundos. */
+export const SOURCES_POLL_MS = 5000;
+
 export function useSources(brandId: string) {
   return useQuery({
     queryKey: brandKeys.sources(brandId),
-    queryFn: async (): Promise<KnowledgeSourceRow[]> =>
+    queryFn: async (): Promise<KnowledgeSourceListRow[]> =>
       unwrap(
         await supabase
           .from('brand_knowledge_sources')
-          .select('*')
+          .select(SOURCE_LIST_COLUMNS)
           .eq('brand_id', brandId)
           .order('created_at', { ascending: false }),
-      ),
+      ) as KnowledgeSourceListRow[],
+    refetchInterval: (query) =>
+      query.state.data?.some((s) => s.status === 'pending' || s.status === 'processing') ? SOURCES_POLL_MS : false,
   });
 }
 

@@ -1,0 +1,87 @@
+{
+  "format": "rrss.agency-templates",
+  "version": 1,
+  "note": "Plantillas sacadas de las publicaciones importadas (ejemplo de la forma del archivo)",
+  "templates": [
+    {
+      "key": "titular-sobre-foto",
+      "name": "Titular sobre foto",
+      "network": "instagram",
+      "format": "post",
+      "document": {
+        "schemaVersion": 3,
+        "canvas": { "aspectRatio": "4:5", "width": 1080, "height": 1350, "backgroundColor": "#1F1B16" },
+        "layers": [
+          {
+            "id": "marcador-foto",
+            "name": "Foto (sustituir)",
+            "type": "shape",
+            "x": 0,
+            "y": 0,
+            "width": 1080,
+            "height": 1350,
+            "shape": "rectangle",
+            "fill": "#3A332B"
+          },
+          {
+            "id": "velo",
+            "name": "Velo oscuro inferior",
+            "type": "shape",
+            "x": 0,
+            "y": 900,
+            "width": 1080,
+            "height": 450,
+            "opacity": 0.55,
+            "shape": "rectangle",
+            "fill": "#000000"
+          },
+          {
+            "id": "titular",
+            "name": "Titular",
+            "type": "text",
+            "x": 80,
+            "y": 1000,
+            "width": 920,
+            "height": 200,
+            "text": "Titular de la publicación",
+            "fontFamily": "Playfair Display",
+            "fontSize": 84,
+            "fontWeight": 700,
+            "color": "#FFFFFF",
+            "align": "left"
+          }
+        ],
+        "copy": {
+          "caption": "",
+          "hashtags": [],
+          "mentions": [],
+          "altText": "",
+          "callToAction": { "label": "", "url": "" }
+        }
+      },
+      "analysis": {
+        "summary": "Foto a sangre con un velo oscuro abajo y un titular grande en blanco; la usan para platos y novedades.",
+        "layers": [
+          { "role": "photo", "position": "toda la pieza", "description": "foto cenital a sangre" },
+          { "role": "overlay", "position": "tercio inferior", "description": "degradado negro al 55 %" },
+          { "role": "headline", "position": "abajo a la izquierda, 80 px de margen", "description": "2 líneas como máximo" }
+        ],
+        "typography": [
+          { "role": "headline", "family": "Playfair Display (aprox.)", "weight": 700, "case": "sentence", "note": "serif con contraste alto" }
+        ],
+        "colors": [
+          { "hex": "#1F1B16", "role": "background" },
+          { "hex": "#FFFFFF", "role": "text" }
+        ],
+        "logo": { "position": "bottom-right", "sizePercent": 12 },
+        "photo": { "type": "plato cenital con luz natural", "treatment": "sin filtro, algo de contraste" },
+        "tone": { "description": "Cercano y breve; frases cortas sin signos de exclamación.", "samples": ["Hoy toca arroz."] },
+        "recurrence": { "count": 14, "reviewed": 40 },
+        "examples": [
+          { "permalink": "https://www.instagram.com/p/EJEMPLO1/" },
+          { "permalink": "https://www.instagram.com/p/EJEMPLO2/" }
+        ]
+      }
+    }
+  ]
+}

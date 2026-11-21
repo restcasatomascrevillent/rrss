@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MAX_FILE_BYTES, SOURCE_MIME_TYPES } from '@/config/app';
 import {
   assetKindFromMime,
@@ -6,7 +6,9 @@ import {
   sanitizeFileName,
   sha256Hex,
   sourceKindFromMime,
+  uploadPercent,
   validateFile,
+  xhrUpload,
 } from './files';
 
 const ORG = '11111111-1111-4111-8111-111111111111';
@@ -92,5 +94,84 @@ describe('sha256Hex', () => {
   it('calcula la huella conocida de «abc»', async () => {
     const blob = { arrayBuffer: async () => new TextEncoder().encode('abc').buffer } as Blob;
     expect(await sha256Hex(blob)).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+  });
+});
+
+describe('uploadPercent', () => {
+  it('calcula el porcentaje real y lo acota', () => {
+    expect(uploadPercent(0, 100)).toBe(0);
+    expect(uploadPercent(50, 200)).toBe(25);
+    expect(uploadPercent(199, 200)).toBe(99);
+    expect(uploadPercent(300, 200)).toBe(100);
+  });
+  it('devuelve 0 si no se conoce el total', () => {
+    expect(uploadPercent(10, 0)).toBe(0);
+    expect(uploadPercent(Number.NaN, 10)).toBe(0);
+  });
+});
+
+class FakeXhr {
+  static last: FakeXhr;
+  upload: { onprogress?: (e: { lengthComputable: boolean; loaded: number; total: number }) => void } = {};
+  headers: Record<string, string> = {};
+  method = '';
+  url = '';
+  status = 0;
+  responseText = '';
+  onload?: () => void;
+  onerror?: () => void;
+  onabort?: () => void;
+  constructor() {
+    FakeXhr.last = this;
+  }
+  open(method: string, url: string) {
+    this.method = method;
+    this.url = url;
+  }
+  setRequestHeader(name: string, value: string) {
+    this.headers[name] = value;
+  }
+  send() {}
+}
+
+describe('xhrUpload', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const options = (onProgress?: (p: number) => void) => ({
+    url: 'http://x/upload',
+    headers: { Authorization: 'Bearer t' },
+    body: new Blob(['abc']),
+    onProgress,
+  });
+
+  it('informa del progreso por bytes y termina en 100', async () => {
+    vi.stubGlobal('XMLHttpRequest', FakeXhr);
+    const seen: number[] = [];
+    const promise = xhrUpload(options((p) => seen.push(p)));
+    const xhr = FakeXhr.last;
+    expect(xhr.method).toBe('POST');
+    expect(xhr.headers.Authorization).toBe('Bearer t');
+    xhr.upload.onprogress?.({ lengthComputable: true, loaded: 25, total: 100 });
+    xhr.upload.onprogress?.({ lengthComputable: false, loaded: 50, total: 0 });
+    xhr.upload.onprogress?.({ lengthComputable: true, loaded: 100, total: 100 });
+    xhr.status = 200;
+    xhr.onload?.();
+    await promise;
+    expect(seen).toEqual([25, 100, 100]);
+  });
+
+  it('rechaza con el mensaje y el estado del servidor', async () => {
+    vi.stubGlobal('XMLHttpRequest', FakeXhr);
+    const promise = xhrUpload(options());
+    FakeXhr.last.status = 413;
+    FakeXhr.last.responseText = JSON.stringify({ message: 'The object exceeded the maximum allowed size' });
+    FakeXhr.last.onload?.();
+    await expect(promise).rejects.toEqual({ message: 'The object exceeded the maximum allowed size', statusCode: 413 });
+  });
+
+  it('trata un fallo de red como tal', async () => {
+    vi.stubGlobal('XMLHttpRequest', FakeXhr);
+    const promise = xhrUpload(options());
+    FakeXhr.last.onerror?.();
+    await expect(promise).rejects.toMatchObject({ statusCode: 0 });
   });
 });

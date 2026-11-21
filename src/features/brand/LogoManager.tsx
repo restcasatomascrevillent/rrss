@@ -1,10 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { ImagePlus, X } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useRef, useState, type MutableRefObject } from 'react';
 import { toast } from 'sonner';
 import { Button, Skeleton } from '@/components/ui';
 import { LOGO_MIME_TYPES } from '@/config/app';
-import { assetKeys, uploadAsset, useAssetsByIds, useSignedUrls } from '@/features/library/api';
+import { assetKeys, deleteAssets, uploadAsset, useAssetsByIds, useSignedUrls } from '@/features/library/api';
 import { translateError } from '@/lib/errors';
 
 interface LogoManagerProps {
@@ -12,11 +12,13 @@ interface LogoManagerProps {
   brandId: string;
   ids: string[];
   onChange: (ids: string[]) => void;
+  /** Ids subidos en esta sesión que aún no están en ninguna versión guardada (los gestiona quien guarda). */
+  pending: MutableRefObject<Set<string>>;
   disabled?: boolean;
 }
 
 /** Logotipos del perfil: son archivos de la biblioteca (tipo «logo») enlazados por su id. */
-export function LogoManager({ organizationId, brandId, ids, onChange, disabled }: LogoManagerProps) {
+export function LogoManager({ organizationId, brandId, ids, onChange, pending, disabled }: LogoManagerProps) {
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -30,8 +32,10 @@ export function LogoManager({ organizationId, brandId, ids, onChange, disabled }
       try {
         if (!(LOGO_MIME_TYPES as readonly string[]).includes(file.type))
           throw new Error(`«${file.name}» no es una imagen PNG, JPG o WebP.`);
-        const asset = await uploadAsset({ organizationId, brandId, file, kind: 'logo' });
+        // Provisional hasta que se guarde el perfil: si se cierra la pestaña sin guardar, lo limpia el servidor.
+        const asset = await uploadAsset({ organizationId, brandId, file, kind: 'logo', provisional: true });
         added.push(asset.id);
+        pending.current.add(asset.id);
       } catch (e) {
         toast.error(translateError(e));
       }
@@ -41,6 +45,15 @@ export function LogoManager({ organizationId, brandId, ids, onChange, disabled }
       onChange([...ids, ...added]);
       await queryClient.invalidateQueries({ queryKey: assetKeys.all(brandId) });
     }
+  }
+
+  /** Quita el logotipo del borrador; si nunca se guardó, tampoco se queda en la biblioteca. */
+  function remove(id: string) {
+    onChange(ids.filter((v) => v !== id));
+    if (!pending.current.delete(id)) return;
+    void deleteAssets([id])
+      .catch((e) => toast.error(translateError(e)))
+      .finally(() => queryClient.invalidateQueries({ queryKey: assetKeys.all(brandId) }));
   }
 
   return (
@@ -67,7 +80,7 @@ export function LogoManager({ organizationId, brandId, ids, onChange, disabled }
               {!disabled && (
                 <button
                   type="button"
-                  onClick={() => onChange(ids.filter((v) => v !== id))}
+                  onClick={() => remove(id)}
                   aria-label={`Quitar el logotipo ${asset?.file_name ?? ''} del perfil`}
                   className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-surface text-fg shadow-card hover:bg-subtle"
                 >

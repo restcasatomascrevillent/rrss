@@ -1,0 +1,47 @@
+{
+  "format": "rrss.agency-plan",
+  "version": 1,
+  "note": "Plan de la semana: tres piezas",
+  "plan": {
+    "objective": "Llenar las mesas de entre semana con la carta de otoño.",
+    "summary": "Tres piezas: el plato de la semana el lunes, un carrusel el miércoles y el recordatorio de reservas el viernes.",
+    "reasoning": {
+      "observed": ["El tono de la marca es cercano.", "La biblioteca tiene fotos de los platos de otoño."],
+      "dataBacked": [],
+      "hypotheses": ["El viernes es buen día para recordar la reserva del fin de semana."],
+      "dataNote": "Todavía no hay datos de resultados de la marca: nada de este plan está respaldado por datos."
+    },
+    "pieces": [
+      {
+        "network": "instagram",
+        "format": "post",
+        "date": "2026-11-23",
+        "idea": "Plato de la semana",
+        "caption": "Arrancamos la semana con guiso de setas.",
+        "hashtags": ["CocinaDeMercado"],
+        "assetIds": [],
+        "why": "Lunes: abrir la semana con el plato estrella."
+      },
+      {
+        "network": "instagram",
+        "format": "carousel",
+        "date": "2026-11-25",
+        "idea": "Tres platos de otoño",
+        "caption": "Calabaza, castañas y setas: la carta de otoño en tres fotos.",
+        "hashtags": [],
+        "assetIds": [],
+        "why": "Miércoles: carrusel para guardar."
+      },
+      {
+        "network": "instagram",
+        "format": "post",
+        "date": "2026-11-27",
+        "idea": "Reservas del fin de semana",
+        "caption": "Este fin de semana, cocina de temporada. Reserva tu mesa.",
+        "hashtags": ["CocinaDeMercado"],
+        "assetIds": [],
+        "why": "Viernes: la gente decide el plan del fin de semana."
+      }
+    ]
+  }
+}
